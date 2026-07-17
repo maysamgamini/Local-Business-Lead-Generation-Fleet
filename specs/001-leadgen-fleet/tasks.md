@@ -42,10 +42,10 @@
 
 **SQL Function API** (`db/functions/`, per contracts/sql-api.md):
 
-- [ ] T017 `claim_work_items.sql` + `renew_lease.sql` — concurrency semaphore, SKIP LOCKED batch, service_runs creation, version pickup
-- [ ] T018 `complete_work_items.sql` — per-service completion family with universal fence (state + token + lease expiry), single-transaction result writes, version-coalescing rerun rule; `fail_work_item` + `defer_work_item` (separate counters)
-- [ ] T019 [P] `sweeper_engine.sql` — `reap_expired_leases()`, `requeue_retryable_work()`, `requeue_stale_assessments()`
-- [ ] T020 [P] `lead_revision.sql` — `advance_lead_revision()` with effective-change detection + impact-rule routing (self-requeue excluded)
+- [X] T017 `claim_work_items.sql` + `renew_lease.sql` — concurrency semaphore, SKIP LOCKED batch, service_runs creation, version pickup
+- [X] T018 `complete_work_items.sql` — per-service completion family with universal fence (state + token + lease expiry), single-transaction result writes, version-coalescing rerun rule; `fail_work_item` + `defer_work_item` (separate counters)
+- [X] T019 [P] `sweeper_engine.sql` — `reap_expired_leases()`, `requeue_retryable_work()`, `requeue_stale_assessments()`
+- [X] T020 [P] `lead_revision.sql` — `advance_lead_revision()` with effective-change detection + impact-rule routing (self-requeue excluded)
 - [ ] T021 `paid_operations.sql` — `authorize_paid_operation()` (atomic max-billable budget + permit), **`authorize_enrichment_operation()` (ONE transaction: work-item fence + opportunity/assessment-revision + approval + suppressions + campaign state + budget + permit — gate provenance recorded; failing gate → blocked/skipped_gate, no retry consumed; replaces the separate revalidate-then-authorize pair)**, `settle_paid_operation()` (actual ≤ maximum), `release_paid_operation()`, `renew_provider_permit()`, `reconcile_expired_reservations()`
 - [ ] T022 [P] `outbox_engine.sql` — claim/complete/fail deliveries with in-transaction consumption receipts, dead-letter, per-destination fan-out
 - [ ] T023 `campaign_lifecycle.sql` — `create_campaign(request, caller_identity, trigger_source)`, `commit_discovery_results()` (fenced), `cancel_campaign()`
