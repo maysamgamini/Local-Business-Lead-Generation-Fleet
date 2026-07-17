@@ -186,20 +186,23 @@ BEGIN
       SELECT * INTO ins FROM _insert_evidence(v_biz, p_campaign_id, 'discovery', v_run_id, ev);
     END LOOP;
 
-    -- lead-scoped work-item graph with correct initial states
-    INSERT INTO work_items (scope_type, campaign_id, campaign_lead_id, service, state) VALUES
-      ('lead', p_campaign_id, v_lead, 'website',
-        CASE WHEN coalesce(b->>'domain','') = '' THEN 'skipped_prerequisite' ELSE 'pending' END),
-      ('lead', p_campaign_id, v_lead, 'reviews',    'pending'),
-      ('lead', p_campaign_id, v_lead, 'phone',      'blocked'),
-      ('lead', p_campaign_id, v_lead, 'enrichment', 'blocked'),
-      ('lead', p_campaign_id, v_lead, 'assessment', 'blocked')
+    -- lead-scoped work-item graph with correct initial states, gated by
+    -- service_config.enabled: a disabled service (no worker shipped yet — e.g.
+    -- US1 has reviews/phone/enrichment/assets disabled) is created terminal
+    -- (skipped_prerequisite) so the campaign can finalize without it. Enabling a
+    -- service later is a one-row service_config flip; new campaigns pick it up.
+    INSERT INTO work_items (scope_type, campaign_id, campaign_lead_id, service, state)
+    SELECT 'lead', p_campaign_id, v_lead, sc.service,
+      CASE
+        WHEN NOT sc.enabled THEN 'skipped_prerequisite'
+        WHEN sc.service = 'website' THEN
+          CASE WHEN coalesce(b->>'domain','') = '' THEN 'skipped_prerequisite' ELSE 'pending' END
+        WHEN sc.service = 'reviews' THEN 'pending'
+        ELSE 'blocked'   -- phone, enrichment, assessment: unblocked by dependency hooks
+      END
+    FROM service_config sc
+    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment')
     ON CONFLICT DO NOTHING;
-    -- no-website leads: phone would wait forever on website; resolve now
-    IF coalesce(b->>'domain','') = '' THEN
-      UPDATE work_items SET state = 'blocked' WHERE campaign_lead_id = v_lead
-        AND service = 'phone' AND state = 'blocked';  -- reviews still pending; phone unblocks on reviews terminal via completion hook
-    END IF;
   END LOOP;
 
   -- typed relationships (second pass, after all businesses exist)
