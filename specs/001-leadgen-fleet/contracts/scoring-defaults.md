@@ -9,23 +9,35 @@ General rules: every entry scores only latest-event-`confirmed` evidence; `missi
 | feature_key | Producer |
 |---|---|
 | website_present, photo_asset_count, firmographics, serp_rank | Discovery |
-| pagespeed_*, design_age_estimate, seo_gaps, conversion_blockers, booking_widget_present, tech fingerprints, **ad_presence**, **social_inactive_90d** | Website Auditor (Tier 1 for deterministic incl. marketing presence; Tier 2 for agent findings) |
+| pagespeed_* (perf/seo/accessibility), staleness_years, mobile_friendly, website_reachable, design_findings | Website Auditor v2 Tier 1 (deterministic: PSI + HTML freshness/viewport) |
+| design_age_estimate, visual_appeal | Website Auditor v2 — **Gemini Flash vision** on a screenshot |
+| seo_gaps, conversion_blockers, ad_presence, social_inactive_90d | Website Auditor Tier 2 text/marketing (future enhancement) |
 | review_volume, rating, review trajectory, owner_response_rate, complaint themes/quotes | Review Miner |
 | phone_pain_score, ai_receptionist_likelihood, hours_gap | Phone Presence (derived; lineage-linked) |
 | contactability inputs (verified roles/channels) | Contact Enricher (US2 — contactability is 0 until then, which is why Hot cannot exist at the US1 checkpoint) |
 | fits_in_midband_count, best/second fit, completeness | Scorer-internal derived features — computed from other scored values during assessment, no external producer |
 
-## fit_web_seo (max 100)
+## fit_web_seo (max 100) — REDESIGN-FOCUSED (v2)
 
-| feature_key | transform | params | max points |
-|---|---|---|---|
-| website_present = false | boolean_points | — | **85** (near-max signal; remaining website features then n/a) |
-| pagespeed_performance | inverse_linear | in 0–100 | 25 |
-| pagespeed_seo | inverse_linear | in 0–100 | 15 |
-| serp_rank (best observed for own category+geo) | step | rank >20 → 20 · 11–20 → 12 · 4–10 → 5 · ≤3 → 0 | 20 |
-| design_age_estimate (agent) | step | dated/legacy → 15 · aging → 8 · modern → 0 | 15 |
-| seo_gaps[] count | linear | 3 pts each | 15 |
-| conversion_blockers[] count | linear | 5 pts each | 10 |
+The product is selling redesigns, so web_seo rewards **outdated / visually weak** sites. Visual age + staleness + mobile carry the weight; PSI/SEO are supporting evidence. Producer: Website Auditor v2 (deterministic Tier-1 + Gemini-Flash vision).
+
+| feature_key | transform | params | max points | source |
+|---|---|---|---|---|
+| website_present = false | boolean_points | — | **85** (no site = near-max; other website features n/a) | Discovery |
+| **visual_appeal** | step | poor → 25 · average → 12 · good → 0 | **25** | Gemini vision |
+| **staleness_years** | linear | 0–6 yrs → 0–25 | **25** | Last-Modified + copyright year |
+| **mobile_friendly = false** | boolean_points | no viewport → 20 | **20** | HTML extract |
+| pagespeed_performance | inverse_linear | in 0–100 | 25 | PSI |
+| pagespeed_seo | inverse_linear | in 0–100 | 15 | PSI |
+| **pagespeed_accessibility** | inverse_linear | in 0–100 | 10 | PSI |
+| design_age_estimate | step | dated → 15 · aging → 8 · modern → 0 | 15 | Gemini vision |
+| serp_rank (best for own category+geo) | step | >20 → 20 · 11–20 → 12 · 4–10 → 5 · ≤3 → 0 | 20 | SerpApi |
+| seo_gaps[] count | linear | 3 pts each | 15 | (Tier-2 text, future) |
+| conversion_blockers[] count | linear | 5 pts each | 10 | (Tier-2 text, future) |
+
+Each fit clamps at 100, so a dated + stale + mobile-broken site maxes web_seo — exactly the "call them today" redesign prospect. `design_findings` (screenshot URL, redesign_rationale, brand_colors, issues) is written as informational evidence (no config row → 0 points) to feed the sales report and the redesign step.
+
+**Vision model**: Gemini Flash (`gemini-2.5-flash`) — cheapest production multimodal, image input included, ~fraction-of-a-cent per lead; already credentialed. Claude reserved for the hot-lead critic (cross-family). See [research R-11].
 
 ## fit_voice_ai (max 100)
 

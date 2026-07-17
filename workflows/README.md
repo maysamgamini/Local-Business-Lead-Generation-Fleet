@@ -12,7 +12,8 @@ round-trips if ever needed.
 | Leadgen — Intake Form | intake-form.sdk.ts | SzTS1b6tJHnQmvY3 |
 | Leadgen — Discovery | discovery.sdk.ts | bGlPRpKMRxnnxPm3 |
 | Leadgen — Scorer | scorer.sdk.ts | r0K3xkLN2XtUceTF |
-| Leadgen — Website Auditor | website-auditor.sdk.ts | ecfwEfnWOCn9hPN4 |
+| Leadgen — Website Auditor v2 | website-auditor.sdk.ts | KKjPDVVMIHl6n5MD |
+| ~~Website Auditor v1~~ (retired) | — | ecfwEfnWOCn9hPN4 (unpublished) |
 | Leadgen — Sweeper | sweeper.sdk.ts | f5xBdfjMchJgJOzq |
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
