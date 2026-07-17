@@ -28,9 +28,11 @@ AWS Lightsail, Ubuntu 24.04, `44.200.15.197` (serves n8n.hiwebenterprise.com via
 | Pruning | EXECUTIONS_DATA_PRUNE=true, MAX_AGE=336h |
 | Rollback | `docker-compose.yml.bak-pre-queue-*` in `/home/ubuntu/n8n/` |
 
-## ⚠️ Capacity note for SC-001/SC-011
+## Host upgrade (2026-07-17): REFERENCE TOPOLOGY NOW DEPLOYED
 
-The 2 GB host CANNOT hold the originally pinned 2-worker/concurrency-10 reference. Current capacity (1 worker × 5) is adequate for US1 development, dry-runs, and `quick`-depth golden campaigns. **Before the T062 rehearsal (300 leads, 3 concurrent campaigns), upgrade the Lightsail plan to ≥4 GB (ideally 8 GB), add the second worker + runner pair (copy the n8n-worker/-runner service blocks), and raise concurrency to 10 — then record the new baseline entry here.** SC-001's p95 promise is only measured against the upgraded topology.
+Instance upgraded via snapshot → new instance: **8 GB RAM / 2 vCPU / 160 GB SSD**, new public IP **98.83.124.239** (SSH key: `LightsailDefaultKey-us-east-1 (2).pem`, untracked). Scaled to the pinned reference: **2 workers × concurrency 10**, each with its own runner sidecar (verified: both brokers healthy, both runner pairs registered). Post-scale memory: ~1.3 GiB used / 6.3 GiB available. Rollback: `docker-compose.yml.bak-pre-scale-*`.
+
+**DNS cutover required (open item at deploy time)**: `n8n.hiwebenterprise.com` pointed at the old IP with the old instance down — either re-attach the static IP to the new instance or update the A record to 98.83.124.239. SC-001/SC-011 measurements are valid against THIS topology once DNS is live.
 
 ## Reference measurement parameters
 

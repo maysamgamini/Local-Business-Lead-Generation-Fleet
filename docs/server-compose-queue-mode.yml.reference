@@ -115,7 +115,7 @@ services:
 
   n8n-worker:
     <<: *n8n_shared
-    command: worker --concurrency=5
+    command: worker --concurrency=10
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,3 +132,23 @@ services:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
     depends_on:
       - n8n-worker
+
+  n8n-worker-2:
+    <<: *n8n_shared
+    command: worker --concurrency=10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      n8n:
+        condition: service_started
+
+  n8n-worker-runner-2:
+    image: n8nio/runners:${N8N_VERSION}
+    restart: always
+    environment:
+      - N8N_RUNNERS_AUTH_TOKEN=${RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker-2:5679
+    depends_on:
+      - n8n-worker-2
