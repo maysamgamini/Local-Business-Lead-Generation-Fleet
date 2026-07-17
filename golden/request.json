@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "request_id": "golden-medspa-78613",
+  "business_type": "med spa",
+  "geo": { "type": "zip", "zip": "78613", "radius_m": 15000 },
+  "depth": "quick",
+  "volume_cap": 10,
+  "budget": { "amount": 15, "currency": "USD" },
+  "requires_approval": true,
+  "exclusions": { "domains": [], "names": [] },
+  "dry_run": false
+}

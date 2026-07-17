@@ -10,7 +10,14 @@ round-trips if ever needed.
 | Leadgen — Event Relay | event-relay.sdk.ts | D2O53VaniWo0i6T7 |
 | Leadgen — Error Handler | error-handler.sdk.ts | YebUjdNTwGqPy4M9 |
 | Leadgen — Intake Form | intake-form.sdk.ts | SzTS1b6tJHnQmvY3 |
+| Leadgen — Discovery | discovery.sdk.ts | bGlPRpKMRxnnxPm3 |
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
-- `Postgres account` (user kept default name; the relay/edge credential) — host `postgres`, port 5432, db `leadgen_db`, user `leadgen_relay`
-- (US1 will add: analyzer / scorer / enricher / sweeper role credentials + provider creds)
+- `Postgres account` (default name; currently the relay/edge role `leadgen_relay`) — host `postgres`, port 5432, db `leadgen_db`
+  - NOTE: Discovery's claim/commit ideally use the `leadgen_analyzer` role. For now they reuse `Postgres account`; when tightening, make a per-role Postgres credential and reassign. All role passwords: `ssh ... "cat /home/ubuntu/n8n/leadgen-db.env"`.
+- `Google Places API` — **HTTP Header Auth** credential: Name = `X-Goog-Api-Key`, Value = your Google Cloud API key with Places API (New) enabled. **REQUIRED for live Discovery.**
+- `SerpApi account` — SerpApi credential (already present in n8n).
+- (later: analyzer / scorer / enricher / sweeper role creds + Apify / Hunter / Apollo / PSI / Anthropic / Gemini provider creds)
+
+## Activation checklist (per workflow, after credentials assigned)
+Event Relay ✓ active · Intake Form (activate to accept submissions) · Discovery (needs Google Places API cred, then activate) · Error Handler (set as each workflow's Error Workflow in Settings).

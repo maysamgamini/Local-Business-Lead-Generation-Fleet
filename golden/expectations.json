@@ -1,0 +1,40 @@
+{
+  "_comment": "Golden-campaign expectations. V4a (US1 checkpoint) asserts the us1 block only; the contacts/hot/digest block is filled and asserted at V4b (after US4, T061). Tolerance: fit scores +/-10, opportunity +/-10; classifications and invariant facts exact. Fixture-and-expectations are versioned together (fixtures/README rule).",
+  "vertical": "med spa near 78613 (Cedar Park, TX)",
+  "us1": {
+    "min_leads": 8,
+    "opportunity_ranking_top3_place_ids": ["gold-p1", "gold-p4", "gold-p7"],
+    "leads": {
+      "gold-p1": {
+        "name": "Radiance MedSpa",
+        "invariant_facts": { "top_complaint_theme": "unanswered_calls", "website_present": true },
+        "fit_bands": { "fit_web_seo": [55, 80], "fit_voice_ai": [70, 95], "fit_ads_video": [30, 60], "fit_consulting": [20, 50] },
+        "opportunity_band": [72, 92],
+        "classification_us1": "warm",
+        "hot_candidate": true
+      },
+      "gold-p2": {
+        "name": "Glow Skin Studio",
+        "invariant_facts": { "website_present": false },
+        "fit_bands": { "fit_web_seo": [80, 100] },
+        "opportunity_band": [60, 85],
+        "hot_candidate": true
+      },
+      "gold-p3": {
+        "name": "Serenity Wellness Spa",
+        "invariant_facts": { "website_present": true, "top_complaint_theme": "scheduling_delays" },
+        "opportunity_band": [40, 65],
+        "classification_us1": "cold"
+      }
+    },
+    "planted_failures": {
+      "fabricated_quote_business": "gold-p1",
+      "note": "the theme-extraction fixture for gold-p1 contains one quote absent from the review corpus; the quote-checker MUST emit a rejected verification event and that quote MUST contribute 0 points."
+    }
+  },
+  "v4b_contacts": {
+    "_status": "populated at T061",
+    "planted_wrong_contact_business": "gold-p4",
+    "planted_suppressed_email": "blocked@fixture-medspa.example"
+  }
+}
