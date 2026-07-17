@@ -55,7 +55,7 @@
 - [X] T027 `100_privileges.sql` migration — revoke direct DML; EXECUTE grants per role per function; privilege audit inside `healthcheck()`
 - [X] T028 [P] Seeds `db/seeds/activate-v1.sql` — scoring_config from `contracts/scoring-defaults.md`, thresholds, chain_rules (asset-collector rule present but disabled), revision_impact_rules, vertical policy, deadline + retry policies, service_config, provider_limits, unit costs
 - [X] T029 Race/failure-injection suite `db/tests/race_tests.sql` + `scripts/run-race-tests.ps1` — all quickstart V1 assertions: concurrency semaphore, discovery poke storm, fence rejection incl. lease expiry, atomic enrichment authorization (gate+budget+permit in one transaction — no TOCTOU window), settle-above-max raises, retry lifecycle, permit renewal/expiry, duplicate delivery/verification no-ops, finalization abort, deadline resolution, cancellation (tokens invalidated, settlement survives, spend history intact)
-- [ ] T030 Transport workflows `workflows/event-relay.json` (delivery claiming loop, destination dispatch) + `workflows/error-handler.json` (global Error Trigger → Slack + ledger)
+- [X] T030 Transport workflows `workflows/event-relay.json` (delivery claiming loop, destination dispatch) + `workflows/error-handler.json` (global Error Trigger → Slack + ledger)
 
 **Checkpoint**: `scripts/run-race-tests.ps1` fully green + `healthcheck()` green.
 

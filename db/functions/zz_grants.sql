@@ -81,7 +81,8 @@ BEGIN
       @@SCHEMA@@.complete_outbox_delivery(uuid,uuid,text,text),
       @@SCHEMA@@.fail_outbox_delivery(uuid,uuid,text,integer),
       @@SCHEMA@@.create_campaign(jsonb,uuid,text),
-      @@SCHEMA@@.issue_approval_token(uuid,text,text,interval)
+      @@SCHEMA@@.issue_approval_token(uuid,text,text,interval),
+      @@SCHEMA@@.evaluate_chain_rules(uuid,text,bigint)
     TO %I $f$, 'leadgen_relay' || sfx);
 
   -- human actions
