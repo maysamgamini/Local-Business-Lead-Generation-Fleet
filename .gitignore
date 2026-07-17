@@ -14,3 +14,7 @@ leadgen-automation/
 node_modules/
 *.env
 .env*
+
+# Embedded clone of n8n-io/n8n-hosting with local secrets (SSH key, .env cookies)
+n8n-hosting/
+*.pem
