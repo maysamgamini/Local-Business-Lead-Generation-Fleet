@@ -88,7 +88,8 @@ General rules: every entry scores only latest-event-`confirmed` evidence; `missi
 
 | Threshold | v1 value |
 |---|---|
-| Hot | opportunity ≥75 AND contactability ≥60 AND confidence ≥60 |
+| **hot_candidate** | opportunity ≥75 AND evidence_confidence ≥60 — the US1-computable dimensions; contactability pending. Set by the Scorer whenever this condition holds and the lead is not yet Hot |
+| Hot | opportunity ≥75 AND contactability ≥60 AND confidence ≥60 — evaluated once contactability exists (US2); promotion only after critic resolution |
 | Warm / Cold / Disqualified | opportunity ≥60 / ≥40 / <40 |
 | Enrichment gate | opportunity ≥60 |
 | Quality floor (campaign degraded) | >20% dead work items OR mean confidence <40 |

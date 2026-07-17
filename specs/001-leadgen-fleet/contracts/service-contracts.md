@@ -61,7 +61,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 | In | Assessment work items created/reset by evidence events via impact rules |
 | Work | Recompute from full ledger state under pinned scoring config set; only latest-event-`confirmed` evidence; lineage policy governs derived evidence |
 | Out | `complete_scorer_work_item()`: assessment + score_components + score_log + classification + pointer update (only when `processing_version = lead_revision`; else `is_current=false`, item → pending) + outbox |
-| Critic & hot timing | On first crossing of hot thresholds: classification stays `warm` with `hot_candidate = true`, `critic_state = pending`; `critic_reviews` opened; cross-family critic marks evidence `disputed`; deterministic verifiers re-run; recompute. Only on critic resolution (or `critic_deadline_at`, which resolves as `contested`) does classification become `hot` — and only then does the `lead.hot` event and first-hot Slack milestone fire. An unresolved candidate never enters a digest as hot |
+| Critic & hot timing | `hot_candidate = true` when the candidate condition holds (opportunity ≥75 AND evidence_confidence ≥60 — contactability pending; see scoring-defaults thresholds); classification stays `warm`. When contactability also passes the Hot gate (≥60, US2 enrichment), `critic_reviews` opens (`critic_state = pending`); cross-family critic marks evidence `disputed`; deterministic verifiers re-run; recompute. Only on critic resolution (or `critic_deadline_at`, resolving as `contested`) does classification become `hot` — and only then does `lead.hot` and the first-hot Slack milestone fire. An unresolved candidate never enters a digest as hot |
 
 ## Asset Collector — **deferred to v2**
 
