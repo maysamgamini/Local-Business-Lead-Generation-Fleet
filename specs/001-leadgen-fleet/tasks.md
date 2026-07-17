@@ -30,15 +30,15 @@
 
 **Migrations** (`db/migrations/`):
 
-- [ ] T008 `010_campaigns.sql` — campaigns (caller-scoped idempotency `UNIQUE(caller_identity, request_id)`, pinned config-set ids, deadlines, budget/quality states, finalization fence), approval_tokens, campaign_business_snapshots
-- [ ] T009 `020_businesses.sql` — businesses, business_relationships, business_sales_state, campaign_leads (lead_revision, hot_candidate, critic_state), campaign_lead_dispositions, discovery_observations
-- [ ] T010 `030_work_queue.sql` — work_items with **scope CHECK** (`campaign` ⇒ campaign_id NOT NULL ∧ campaign_lead_id NULL; `lead` ⇒ both NOT NULL) and **partial unique indexes** (`(campaign_id, service) WHERE scope_type='campaign'`; `(campaign_lead_id, service) WHERE scope_type='lead'`); service_runs (`UNIQUE(work_item_id, work_attempt)`); revision_impact_rules
-- [ ] T011 [P] `040_evidence.sql` — evidence_items (typed values, scoped idempotency), evidence_links (composite PK, self-link CHECK), evidence_verification_events (idempotency-keyed)
-- [ ] T012 [P] `050_scoring.sql` — lead_assessments (+ **partial unique index `(campaign_lead_id) WHERE is_current = true`**), score_components, score_log, critic_reviews
-- [ ] T013 [P] `060_contacts.sql` — contacts, contact_business_links, contact_channels, 3 verification tables, campaign_contact_findings, suppressions
-- [ ] T014 [P] `070_money_providers.sql` — budget_transactions (max-billable, expiry, reconciliation, `service_run_id` FK), provider_limits, provider_permits (permit_token)
-- [ ] T015 [P] `080_events_config.sql` — outbox_events (event_class, blocks_finalization, idempotency), outbox_deliveries (`UNIQUE(event_id, destination)`, lease), event_consumptions (PK event+destination), chain_rules, chain_rule_evaluations, config_sets, scoring_config, service_policy_entries, service_config, service_runtime_state, assets (campaign-scoped; v1 reference-only, chain rule shipped disabled)
-- [ ] T016 `090_indexes_constraints_views.sql` — remaining contracted indexes, CHECK constraints (scores 0–100, positive money, nonnegative counters), views `stuck_work_overview` + `campaign_progress`, function `healthcheck()`
+- [X] T008 `010_campaigns.sql` — campaigns (caller-scoped idempotency `UNIQUE(caller_identity, request_id)`, pinned config-set ids, deadlines, budget/quality states, finalization fence), approval_tokens, campaign_business_snapshots
+- [X] T009 `020_businesses.sql` — businesses, business_relationships, business_sales_state, campaign_leads (lead_revision, hot_candidate, critic_state), campaign_lead_dispositions, discovery_observations
+- [X] T010 `030_work_queue.sql` — work_items with **scope CHECK** (`campaign` ⇒ campaign_id NOT NULL ∧ campaign_lead_id NULL; `lead` ⇒ both NOT NULL) and **partial unique indexes** (`(campaign_id, service) WHERE scope_type='campaign'`; `(campaign_lead_id, service) WHERE scope_type='lead'`); service_runs (`UNIQUE(work_item_id, work_attempt)`); revision_impact_rules
+- [X] T011 [P] `040_evidence.sql` — evidence_items (typed values, scoped idempotency), evidence_links (composite PK, self-link CHECK), evidence_verification_events (idempotency-keyed)
+- [X] T012 [P] `050_scoring.sql` — lead_assessments (+ **partial unique index `(campaign_lead_id) WHERE is_current = true`**), score_components, score_log, critic_reviews
+- [X] T013 [P] `060_contacts.sql` — contacts, contact_business_links, contact_channels, 3 verification tables, campaign_contact_findings, suppressions
+- [X] T014 [P] `070_money_providers.sql` — budget_transactions (max-billable, expiry, reconciliation, `service_run_id` FK), provider_limits, provider_permits (permit_token)
+- [X] T015 [P] `080_events_config.sql` — outbox_events (event_class, blocks_finalization, idempotency), outbox_deliveries (`UNIQUE(event_id, destination)`, lease), event_consumptions (PK event+destination), chain_rules, chain_rule_evaluations, config_sets, scoring_config, service_policy_entries, service_config, service_runtime_state, assets (campaign-scoped; v1 reference-only, chain rule shipped disabled)
+- [X] T016 `090_indexes_constraints_views.sql` — remaining contracted indexes, CHECK constraints (scores 0–100, positive money, nonnegative counters), views `stuck_work_overview` + `campaign_progress`, function `healthcheck()`
 
 **SQL Function API** (`db/functions/`, per contracts/sql-api.md):
 
