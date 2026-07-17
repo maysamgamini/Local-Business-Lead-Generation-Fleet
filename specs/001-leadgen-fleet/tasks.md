@@ -49,11 +49,11 @@
 - [X] T021 `paid_operations.sql` — `authorize_paid_operation()` (atomic max-billable budget + permit), **`authorize_enrichment_operation()` (ONE transaction: work-item fence + opportunity/assessment-revision + approval + suppressions + campaign state + budget + permit — gate provenance recorded; failing gate → blocked/skipped_gate, no retry consumed; replaces the separate revalidate-then-authorize pair)**, `settle_paid_operation()` (actual ≤ maximum), `release_paid_operation()`, `renew_provider_permit()`, `reconcile_expired_reservations()`
 - [X] T022 [P] `outbox_engine.sql` — claim/complete/fail deliveries with in-transaction consumption receipts, dead-letter, per-destination fan-out
 - [X] T023 `campaign_lifecycle.sql` — `create_campaign(request, caller_identity, trigger_source)`, `commit_discovery_results()` (fenced), `cancel_campaign()`
-- [ ] T024 [P] `human_actions.sql` — `issue_approval_token()`, `record_approval()`, `record_sales_status()`, `record_lead_disposition()`, `record_suppression()`
-- [ ] T025 `finalization.sql` — `begin/complete/abort_campaign_finalization()` with state-revision fence, blocks_finalization check, deadline-policy resolution
-- [ ] T026 `config_admin.sql` — `activate_config_set()`, `evaluate_chain_rules()`
-- [ ] T027 `100_privileges.sql` migration — revoke direct DML; EXECUTE grants per role per function; privilege audit inside `healthcheck()`
-- [ ] T028 [P] Seeds `db/seeds/activate-v1.sql` — scoring_config from `contracts/scoring-defaults.md`, thresholds, chain_rules (asset-collector rule present but disabled), revision_impact_rules, vertical policy, deadline + retry policies, service_config, provider_limits, unit costs
+- [X] T024 [P] `human_actions.sql` — `issue_approval_token()`, `record_approval()`, `record_sales_status()`, `record_lead_disposition()`, `record_suppression()`
+- [X] T025 `finalization.sql` — `begin/complete/abort_campaign_finalization()` with state-revision fence, blocks_finalization check, deadline-policy resolution
+- [X] T026 `config_admin.sql` — `activate_config_set()`, `evaluate_chain_rules()`
+- [X] T027 `100_privileges.sql` migration — revoke direct DML; EXECUTE grants per role per function; privilege audit inside `healthcheck()`
+- [X] T028 [P] Seeds `db/seeds/activate-v1.sql` — scoring_config from `contracts/scoring-defaults.md`, thresholds, chain_rules (asset-collector rule present but disabled), revision_impact_rules, vertical policy, deadline + retry policies, service_config, provider_limits, unit costs
 - [ ] T029 Race/failure-injection suite `db/tests/race_tests.sql` + `scripts/run-race-tests.ps1` — all quickstart V1 assertions: concurrency semaphore, discovery poke storm, fence rejection incl. lease expiry, atomic enrichment authorization (gate+budget+permit in one transaction — no TOCTOU window), settle-above-max raises, retry lifecycle, permit renewal/expiry, duplicate delivery/verification no-ops, finalization abort, deadline resolution, cancellation (tokens invalidated, settlement survives, spend history intact)
 - [ ] T030 Transport workflows `workflows/event-relay.json` (delivery claiming loop, destination dispatch) + `workflows/error-handler.json` (global Error Trigger → Slack + ledger)
 
