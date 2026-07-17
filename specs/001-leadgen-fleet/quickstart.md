@@ -48,11 +48,12 @@ Proves, via parallel psql sessions against fixture rows:
 
 ### V2 — Dry-run campaign (fixture providers, real LLM calls, isolated schema)
 
-Submit via webhook intake with `"dry_run": true` and a fixture-covered request (see `fixtures/README`). **Expected**:
-- Campaign completes in `leadgen_dryrun`; zero rows written to production tables; zero provider spend recorded outside LLM tokens.
-- Every delivered score fully explained by `score_components` rows pointing at typed evidence (SC-003 spot-check).
-- Quote-checker rejects the one fabricated quote planted in the review fixtures (critic eval).
-- DM-verifier demotes the planted wrong-business contact (critic eval).
+**V2a (US1 checkpoint)** — submit via the **form intake** (Execute Workflow) or a direct `leadgen_dryrun.create_campaign()` call with a fixture-covered request (see `fixtures/README`). The webhook intake does not exist until US3 and is not used here. **Expected**:
+- Campaign completes in `leadgen_dryrun`; zero rows written to production tables; zero provider spend outside LLM tokens.
+- Every fit score fully explained by `score_components` rows pointing at typed evidence (SC-003 spot-check); `hot_candidate` set where opportunity thresholds are met — **no Hot classification exists yet** (contactability is US2).
+- Quote-checker rejects the fabricated quote planted in the review fixtures.
+
+**V2b (US2 checkpoint)** — rerun with enrichment fixtures: DM-verifier demotes the planted wrong-business contact; planted suppressed email never becomes outreach-usable; Hot AND-gate (75/60/60) holds.
 
 ### V3 — Contract replay & idempotency
 
@@ -63,11 +64,9 @@ Submit via webhook intake with `"dry_run": true` and a fixture-covered request (
 
 ### V4 — Golden campaign (live providers, `quick` depth, small volume)
 
-Run the golden request (`golden/request.json`, ~10 hand-labeled businesses). **Expected**:
-- Assessments within tolerance bands in `golden/expectations.json` (fit scores ±10, classifications exact).
-- Known facts survive: owner names, top complaint themes.
-- Digest lists hot leads with sales angle + verifiable evidence + any `contested` objections; snapshot sheet written; Slack milestones fired (started / first hot / complete).
-- `service_runs` show model, prompt version, config-set ids, and per-run cost for every execution.
+**V4a (US1 checkpoint)** — run `golden/request.json` (~10 hand-labeled businesses). **Expected**: fit scores within tolerance bands in `golden/expectations.json` (±10), opportunity ranking order correct, invariant facts survive (top complaint themes, website characteristics), snapshot sheet written, `service_runs` show model/prompt/config-set/cost per execution. **No contact, Hot, digest, or Slack expectations at this stage.**
+
+**V4b (after US4, task T061)** — full live end-to-end: verified owner names, post-critic Hot leads, digest with evidence + contested objections, Slack milestones (started / first Hot / complete), dashboard live. Extends `golden/expectations.json` with the contact/Hot/digest sections.
 
 Re-run V4 after **any** config-set, prompt, or workflow-version change. Two distinct reproducibility checks:
 - **Deterministic replay (SC-007)**: recompute assessments from the *stored* evidence snapshot + stored verification state + pinned config → exact equality of score components, scores, and classifications.

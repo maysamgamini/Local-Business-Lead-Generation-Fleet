@@ -90,7 +90,7 @@ While campaigns run, the team can watch progress on a live dashboard — leads a
 ### Edge Cases
 
 - **Zero discoveries**: campaign completes explicitly with "no results" — not an error, not a hang.
-- **Multi-location brands / franchises**: locations sharing a website are linked as related, not merged into one lead and not counted as independent buying decisions; the delivered record indicates whether to approach the location or the parent (2–10 location businesses are a primary target, not an edge case).
+- **Multi-location brands / franchises**: locations sharing a website are linked as related — never automatically merged, and never automatically assumed to have independent buying authority. The system preserves each location and recommends the likely target level (location / franchisee / regional / headquarters). 2–10 location businesses are a primary target, not an edge case.
 - **Budget exhausted mid-run**: remaining paid work is skipped and labeled; completed work is preserved; spending never exceeds the cap.
 - **Campaign canceled mid-run**: pending work stops; already-started paid operations settle honestly (spend history is never erased); the campaign is marked canceled.
 - **A score drops after it opened the gate to paid enrichment**: the gate is re-checked at spending time; no new paid step starts on stale justification.
@@ -130,7 +130,7 @@ While campaigns run, the team can watch progress on a live dashboard — leads a
 **Scoring & qualification**
 
 - **FR-015**: Scoring MUST be deterministic and explainable: identical inputs and configuration always produce identical scores, and every point of every score is traceable to a specific weighted evidence item.
-- **FR-016**: The system MUST keep three separate qualification dimensions — opportunity strength, contact reachability, and evidence confidence — and MUST NOT let strong contact data compensate for a weak opportunity (or vice versa) in classification (hot / warm / cold / disqualified).
+- **FR-016**: The system MUST keep three separate qualification dimensions — opportunity strength, contact reachability, and evidence confidence. **Hot is independently AND-gated on all three dimensions; warm and cold are opportunity-based classifications that display contactability and confidence separately.** Strong contact data MUST NOT compensate for a weak opportunity (or vice versa).
 - **FR-017**: Before a lead is first classified "hot", an automated contrarian review MUST challenge the supporting evidence; challenged evidence is re-verified through the original verification method (the contrarian reviewer itself can never alter scores or verification outcomes), and unresolved objections are delivered visibly with the lead.
 - **FR-018**: Scoring and qualification rules MUST be versioned and frozen per campaign, so past campaigns remain exactly reproducible after rules change.
 
@@ -143,8 +143,8 @@ While campaigns run, the team can watch progress on a live dashboard — leads a
 
 **Delivery & records**
 
-- **FR-023**: The system MUST maintain a permanent system of record of all campaigns, businesses, leads, evidence, assessments, contacts, and spending — the single source of truth that all delivery surfaces mirror.
-- **FR-024**: Each completed campaign MUST deliver: a digest of hot leads (sales angle, top evidence, unresolved objections, spend summary), a full snapshot export, live progress visibility during the run, and milestone notifications (started, first hot lead, complete).
+- **FR-023**: The system MUST maintain a durable, authoritative system of record of all campaigns, businesses, leads, evidence, assessments, contacts, and spending — the single source of truth that all delivery surfaces mirror — subject to configured retention, suppression, deletion, and legal policies (see FR-026 and the Assumptions on contact-data retention).
+- **FR-024**: Each completed campaign MUST produce its authoritative result set and digest content (hot leads with sales angle, top evidence, unresolved objections, spend summary) as a condition of completion. Secondary deliveries — snapshot export, dashboard mirroring, and milestone notifications (started, first hot lead, complete) — are retried and reported independently; their failure MUST NOT invalidate campaign completion.
 - **FR-025**: Delivered campaign results MUST show business details as observed during that campaign, even if the business's current details change later.
 - **FR-027**: The system of record MUST carry human-owned sales state at two levels, both set only by humans through an authenticated action (never via the dashboard mirror): (a) an audited per-business sales status (untouched / contacted / in-talks / customer / bad-lead) governing future-campaign eligibility — new campaigns exclude contacted, in-talks, customer, and bad-lead businesses unless the request explicitly overrides; and (b) a per-delivered-lead disposition (accepted / rejected / not-reviewed) which is the data source for SC-009. Do-not-contact is derived from an active suppression record, is always excluded, and MUST NOT be overridable by any ordinary campaign parameter.
 
@@ -155,7 +155,7 @@ While campaigns run, the team can watch progress on a live dashboard — leads a
 ### Key Entities
 
 - **Campaign**: one research request and its lifecycle — parameters, frozen rule versions, budget state, approval state, quality outcome, deliverables.
-- **Business**: the current identity of a real-world business (location-level), permanent across campaigns; relationships link multi-location brands; carries the human-owned sales status and do-not-contact flag (FR-027).
+- **Business**: the current identity of a real-world business (location-level), durable across campaigns; relationships link multi-location brands; carries the human-owned sales status (FR-027). Do-not-contact is not a business flag — it derives solely from an active suppression record (single source of truth).
 - **Lead**: one business's participation in one campaign — its per-campaign classification, priority, and assessment history; the same business can be a lead in many campaigns with different outcomes.
 - **Evidence item**: one immutable, dated, sourced finding with a typed value; linked to what it was derived from; verified or rejected by recorded verification events.
 - **Assessment**: a point-in-time scoring of a lead — fit-profile, three qualification dimensions, per-point score breakdown; supersedable, never silently overwritten.
@@ -174,7 +174,7 @@ While campaigns run, the team can watch progress on a live dashboard — leads a
 - **SC-005**: No campaign ever spends beyond its budget cap — measured across all campaigns, including crashes and retries.
 - **SC-006**: 100% of delivered outreach-usable emails passed deliverability verification, and zero delivered contacts appear on any suppression list.
 - **SC-007**: Deterministic replay — recomputing any lead's assessment from its stored evidence, stored verification state, and frozen rules reproduces exactly identical score components, scores, and classification. (Fresh re-research of the same businesses is a separate regression check with tolerance bands, since the outside world changes.)
-- **SC-008**: Duplicate rate in delivered lead lists is below 2%, including across repeated campaigns over the same territory.
+- **SC-008**: Within a single campaign, duplicate business entities in the delivered list are below 2%. Across repeated campaigns over the same territory, at least 98% of rediscovered businesses attach to their existing business record instead of creating a new one.
 - **SC-009**: At least 60% of *reviewed* delivered hot leads are accepted by the sales team as worth pursuing — accepted ÷ (accepted + rejected) from per-lead dispositions (FR-027); not-yet-reviewed leads enter neither numerator nor denominator. Measured during the pilot period.
 - **SC-010**: A campaign whose analyses partially fail still delivers its completed portion, correctly labeled — zero campaigns hang indefinitely or end in an undefined state.
 - **SC-011**: Three campaigns (any mix of manual, scheduled, API-triggered) run concurrently with every per-campaign guarantee intact — budget isolation, no cross-campaign interference, correct completion — and SC-001's timing holds while three are running.

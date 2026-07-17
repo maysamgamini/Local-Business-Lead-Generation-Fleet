@@ -1,6 +1,6 @@
 # Contract: Fleet Service Interfaces
 
-**11 service roles, 17 deployed n8n workflow definitions** (3 intakes + 10 operational including dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + global error handler). Dashboard Sync is delivery-nudged by the Event Relay but deploys as its own workflow. Every service is an independent n8n workflow with two entry points — webhook (poke / external invocation) and Execute Workflow (testing / composition) — plus, for queue workers, an interval trigger. Standard worker loop: `claim_work_items()` → do work → `complete_* / fail / defer`. Pokes only trigger an immediate poll; caps hold because claiming is fenced. **Discovery is a queue worker too** — campaign-scoped work item, same lease/fence, so duplicate pokes can never cause duplicate provider spend.
+**10 active service roles (Asset Collector deferred to v2), 16 deployed n8n workflow definitions** (3 intakes + 9 operational including dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + global error handler). Dashboard Sync is delivery-nudged by the Event Relay but deploys as its own workflow. Every service is an independent n8n workflow with two entry points — webhook (poke / external invocation) and Execute Workflow (testing / composition) — plus, for queue workers, an interval trigger. Standard worker loop: `claim_work_items()` → do work → `complete_* / fail / defer`. Pokes only trigger an immediate poll; caps hold because claiming is fenced. **Discovery is a queue worker too** — campaign-scoped work item, same lease/fence, so duplicate pokes can never cause duplicate provider spend.
 
 Common rules: all LLM outputs schema-validated post-generation (failure = work-item failure); long tiers call `renew_lease()` (and `renew_provider_permit()` for long provider calls); every paid call follows gate → `authorize_paid_operation()` (atomic max-billable budget + permit) → call → settle (`actual ≤ maximum`) or release; all provider calls use retry-with-backoff; deferrals are not failures.
 
@@ -9,8 +9,8 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 | | Contract |
 |---|---|
 | In | Channel-specific (form fields / ICP sheet row / authenticated JSON) |
-| Out | `create_campaign(canonical_request)` → `{campaign_id, status, dashboard_url}` |
-| Guarantees | Canonical validation per canonical-request.md; `trigger_source` set here; idempotent on request_id |
+| Out | `create_campaign(canonical_request, trusted_caller_identity, trusted_trigger_source)` → `{campaign_id, creation_status: created\|existing, campaign_status: created, dashboard_url}` |
+| Guarantees | Canonical validation per canonical-request.md; caller identity + trigger_source are trusted workflow-context arguments, never from the payload; idempotent on `(caller_identity, request_id)`; scheduled intake additionally claims its slot via `claim_scheduled_profile_slot()` before creating |
 
 ## Discovery (queue: `discovery`, campaign-scoped work item)
 
@@ -25,7 +25,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 
 | | Contract |
 |---|---|
-| Tier 1 (deterministic) | Reachability, SSL/redirects, PSI Lighthouse lab scores, viewport, tech fingerprints (CMS, chat/booking widgets, pixels) → typed evidence |
+| Tier 1 (deterministic) | Reachability, SSL/redirects, PSI Lighthouse lab scores, viewport, tech fingerprints (CMS, chat/booking widgets, pixels), **and marketing presence: `ad_presence` (Meta Ad Library + Google Ads Transparency lookups) + `social_inactive_90d` (latest-post recency)** → typed evidence. This service is the contracted producer of the ads-fit features (see scoring-defaults ownership table) |
 | Tier 2 (caged agent, Claude, cap 6 `fetch_page` calls) | `{design_age_estimate, seo_gaps[], conversion_blockers[], missing_capabilities[], rebuild_vs_refresh, confidence}` |
 | Cage | No credentials in context; http/https only; private-IP block post-DNS; ≤3 redirects; size cap; HTML→text sanitization |
 
@@ -50,7 +50,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 
 | | Contract |
 |---|---|
-| Gate | `revalidate_enrichment_gate()` immediately before EVERY `authorize_paid_operation()` |
+| Gate | `authorize_enrichment_operation()` before every paid tier — gate + budget + permit validated and allocated in ONE transaction (no separate revalidate call exists) |
 | Pipeline | Apollo by domain (title filter from vertical policy) → on miss: caged DM-hunter (web_search + fetch_page, cap 6, explicit `not_found` rewarded) → verification dimensions (identity_matched / role_source_attested / channel_deliverable — deterministic checks; LLM assists source-matching only) → Hunter deliverability |
 | Out | Contacts + role links + channels + verification rows (with `expires_at`) + `campaign_contact_findings`; suppressions checked at all 5 levels pre-storage |
 
@@ -63,9 +63,9 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 | Out | `complete_scorer_work_item()`: assessment + score_components + score_log + classification + pointer update (only when `processing_version = lead_revision`; else `is_current=false`, item → pending) + outbox |
 | Critic & hot timing | On first crossing of hot thresholds: classification stays `warm` with `hot_candidate = true`, `critic_state = pending`; `critic_reviews` opened; cross-family critic marks evidence `disputed`; deterministic verifiers re-run; recompute. Only on critic resolution (or `critic_deadline_at`, which resolves as `contested`) does classification become `hot` — and only then does the `lead.hot` event and first-hot Slack milestone fire. An unresolved candidate never enters a digest as hot |
 
-## Asset Collector (queue: `assets`, chain-resolved)
+## Asset Collector — **deferred to v2**
 
-References + attribution only (Places content never downloaded/rehosted); default `license_status = reference_only`; `storage_ref` only for rights-cleared statuses.
+No v1 workflow ships. The `assets` schema exists (reference-only, `storage_ref` always NULL in v1 — consistent with the data model), the chain rule ships **disabled**, and `photo_asset_count` scoring evidence comes from Discovery metadata instead. The v2 collector will gather rights-labeled references (Places content never downloaded/rehosted).
 
 ## Sweeper (schedule)
 

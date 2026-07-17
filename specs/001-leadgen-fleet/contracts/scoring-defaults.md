@@ -4,6 +4,16 @@ Source data for the `scoring_config` v1 config set seeded in T027. Derived from 
 
 General rules: every entry scores only latest-event-`confirmed` evidence; `missing_policy = no_points` unless stated; each fit is capped at 100 after summing; `lineage_policy = count_roots_only` everywhere except where noted.
 
+## Feature ownership (every scored feature has exactly one contracted producer)
+
+| feature_key | Producer |
+|---|---|
+| website_present, photo_asset_count, firmographics, serp_rank | Discovery |
+| pagespeed_*, design_age_estimate, seo_gaps, conversion_blockers, booking_widget_present, tech fingerprints, **ad_presence**, **social_inactive_90d** | Website Auditor (Tier 1 for deterministic incl. marketing presence; Tier 2 for agent findings) |
+| review_volume, rating, review trajectory, owner_response_rate, complaint themes/quotes | Review Miner |
+| phone_pain_score, ai_receptionist_likelihood, hours_gap | Phone Presence (derived; lineage-linked) |
+| contactability inputs (verified roles/channels) | Contact Enricher (US2 — contactability is 0 until then, which is why Hot cannot exist at the US1 checkpoint) |
+
 ## fit_web_seo (max 100)
 
 | feature_key | transform | params | max points |

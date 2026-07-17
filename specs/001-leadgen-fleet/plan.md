@@ -3,7 +3,8 @@
 **Branch**: `001-leadgen-fleet` | **Date**: 2026-07-16 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-leadgen-fleet/spec.md`
-**Governing technical design**: [docs/superpowers/specs/2026-07-16-leadgen-fleet-design.md](../../docs/superpowers/specs/2026-07-16-leadgen-fleet-design.md) (v4 — survived three external design-review rounds; its Decisions Log is authoritative for architecture choices)
+
+**Source-of-truth precedence (highest first)**: 1. `spec.md` → 2. `contracts/*` → 3. `data-model.md` → 4. `tasks.md` → 5. `plan.md` → 6. the historical design document ([docs/superpowers/specs/2026-07-16-leadgen-fleet-design.md](../../docs/superpowers/specs/2026-07-16-leadgen-fleet-design.md), v4 + addendum — five review rounds of rationale and history; where its older sections contradict the contracts, **the contracts win**).
 
 ## Summary
 
@@ -27,7 +28,7 @@ A choreographed fleet of independent n8n workflows researches local businesses p
 
 **Constraints**: Budget cap never exceeded — atomic max-billable authorization with `actual ≤ maximum` enforced at settle (SC-005); deterministic replay reproducibility under pinned config sets (SC-007); provider rate limits enforced globally per credential (token bucket + tokened, renewable permits); workflows have zero direct DML on protected tables; third-party corpora ephemeral, assets reference-only in v1 — `storage_ref` stays NULL (FR-026)
 
-**Scale/Scope**: ≤ 300 businesses/campaign (intake-rejected above), 3 concurrent campaigns, ~4 analyzers + scorer + enricher per lead ⇒ ~2,000–3,000 work items per max campaign; 11 service roles (17 deployed n8n workflow definitions) + ~30 SQL functions (deployed twice: `leadgen` + `leadgen_dryrun` namespaces) + ~40 tables
+**Scale/Scope**: ≤ 300 businesses/campaign (intake-rejected above), 3 concurrent campaigns, ~4 analyzers + scorer + enricher per lead ⇒ ~2,000–3,000 work items per max campaign; 10 active service roles (16 deployed n8n workflow definitions; Asset Collector deferred to v2) + ~30 SQL functions (deployed twice: `leadgen` + `leadgen_dryrun` namespaces) + ~41 tables
 
 ## Constitution Check
 
@@ -49,7 +50,7 @@ specs/001-leadgen-fleet/
 │   ├── canonical-request.md   # Intake contract (all three channels)
 │   ├── sql-api.md             # Transactional function API (the core contract)
 │   └── service-contracts.md   # Per-service I/O, queue + event semantics
-└── tasks.md             # Phase 2 (/speckit-tasks — not created here)
+└── tasks.md             # Task breakdown (65 tasks, 7 phases — generated, restructured after task-graph review)
 ```
 
 ### Source Code (repository root)
@@ -72,7 +73,6 @@ workflows/               # Exported n8n workflow JSON (source of truth, version-
 ├── phone-presence.json
 ├── contact-enricher.json
 ├── scorer.json
-├── asset-collector.json
 ├── sweeper.json
 ├── event-relay.json
 ├── dashboard-sync.json
@@ -92,7 +92,7 @@ scripts/                 # deploy-db.ps1, import-workflows.ps1, run-race-tests.p
 docs/superpowers/specs/  # Governing technical design (v4 + plan-consistency addendum)
 ```
 
-**Structure Decision**: Two-tier repository — `db/` is the transactional core (deployed first, owns all invariants — including the contracted `healthcheck()` function and `stuck_work_overview` / `campaign_progress` views in `db/migrations/*views.sql`), `workflows/` is the n8n runtime layer (imports via n8n CLI/API, holds zero invariants). **Count reconciliation: 11 service roles, 17 deployed workflow definitions** (3 intakes + 10 operational incl. dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + error handler). Fixtures and golden expectations are first-class, version-controlled artifacts because the test strategy depends on them; the exact n8n version is pinned in `golden/baseline.md` at deploy time.
+**Structure Decision**: Two-tier repository — `db/` is the transactional core (deployed first, owns all invariants — including the contracted `healthcheck()` function and `stuck_work_overview` / `campaign_progress` views in `db/migrations/*views.sql`), `workflows/` is the n8n runtime layer (imports via n8n CLI/API, holds zero invariants). **Count reconciliation: 10 active service roles (Asset Collector deferred to v2 — schema ships, chain rule disabled), 16 deployed workflow definitions** (3 intakes + 9 operational incl. dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + error handler). Fixtures and golden expectations are first-class, version-controlled artifacts because the test strategy depends on them; the exact n8n version is pinned in `golden/baseline.md` at deploy time.
 
 ## Complexity Tracking
 

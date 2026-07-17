@@ -41,11 +41,11 @@ Zero rows affected ⇒ the caller lost ownership and MUST discard its result (th
 
 | Function | Contract |
 |---|---|
-| `authorize_paid_operation(work_item_id, claim_token, service_run_id, provider, credential_scope, operation, maximum_billable_usd, idem_key) → (authorization_id, permit_id, permit_token, expires_at) \| 'insufficient_budget' \| retry_at` | **Atomic**: budget reservation of the **maximum billable amount** AND provider permit allocated together, or neither. `maximum_billable_usd` must be enforceable provider-side (capped input size, capped output tokens × pinned price table, actor limits); operations with no enforceable maximum MUST NOT run under the strict cap. Available = cap − settled − active-reserved. Enrichment callers must pass a valid `revalidate_enrichment_gate()` result first |
+| `authorize_paid_operation(work_item_id, claim_token, service_run_id, provider, credential_scope, operation, maximum_billable_usd, idem_key) → (authorization_id, permit_id, permit_token, expires_at) \| 'insufficient_budget' \| retry_at` | **Atomic**: budget reservation of the **maximum billable amount** AND provider permit allocated together, or neither. `maximum_billable_usd` must be enforceable provider-side (capped input size, capped output tokens × pinned price table, actor limits); operations with no enforceable maximum MUST NOT run under the strict cap. Available = cap − settled − active-reserved. For non-gated spends (analyzer LLM calls, review fetches) |
+| `authorize_enrichment_operation(work_item_id, claim_token, service_run_id, provider, credential_scope, operation, maximum_billable_usd, idem_key) → same as above \| 'gate_failed:blocked' \| 'gate_failed:skipped_gate'` | **The gated variant — ONE transaction** (separate revalidate-then-authorize calls from separate n8n nodes would reopen the TOCTOU the design forbids): work-item fence → latest opportunity score + assessment revision → approval state → suppressions → campaign state → budget reservation (max-billable) → provider permit. All-or-nothing; gate provenance (`gate_assessment_id`, `gate_revision`, `gate_threshold_version`) recorded on pass; gate failure returns `blocked` (analysis may still arrive) or `skipped_gate` (analysis final) and consumes no retry |
 | `settle_paid_operation(authorization_id, permit_token, actual_usd, provider_request_id)` | **`actual_usd <= maximum_billable_usd` enforced** — the hard-cap guarantee (SC-005) has no overrun path; violations raise and flag `reconciliation_required` for admin. Valid after work-item cancellation; recomputes `budget_state` |
 | `release_paid_operation(authorization_id, permit_token)` | Provably-uncharged calls; frees reservation + permit together |
 | `renew_provider_permit(permit_id, permit_token)` | For provider calls outliving the permit lease; fenced — expired permits cannot renew, and their concurrency slot is reclaimable |
-| `revalidate_enrichment_gate(work_item_id, claim_token)` | Atomic, immediately before every authorization: latest opportunity score, assessment revision, approval, suppressions, campaign state, budget. Pass records gate provenance; fail → `blocked`/`skipped_gate`, no retry consumed |
 | `reconcile_expired_reservations()` | Sweeper: expired authorizations → release (provably uncharged) / settle (cost known via `provider_request_id`) / `reconciliation_required` + alert |
 
 ## Events, chaining, config, ops
@@ -56,11 +56,29 @@ Zero rows affected ⇒ the caller lost ownership and MUST discard its result (th
 | `claim_outbox_deliveries(destination, worker_id)` / `complete_outbox_delivery(delivery_id, claim_token, result_hash)` / `fail_outbox_delivery(...)` | Lease + fence; completion records the **consumption receipt** (`event_consumptions`, PK (event_id, destination)) in the same transaction; DB-mutating consumers commit receipt + mutation together; max attempts → dead_letter. Only `event_class IN (state_change, dependency)` events block finalization; notification/mirror/audit classes never do |
 | `record_suppression(level, value, reason)` | Idempotency-keyed; business-level suppression is the single source from which visible do-not-contact is derived |
 | `activate_config_set(config_type, version)` | Immutable once activated; covers ALL pinned policy: scoring, chain rules, revision impact rules, vertical policy (title mappings, category allowlists), classification/enrichment thresholds, quality floors, model assignments, agent tool limits, retry + deadline policies. Mutable runtime state (throttles, cooldowns) lives separately in `service_runtime_state` and is never pinned |
+| `claim_scheduled_profile_slot(profile_source, profile_row_id, scheduled_slot) → 'claimed' \| 'already_claimed'` | Locks the `standing_profile_cursors` row; atomically prevents two schedule executions from creating the same campaign; records `last_scheduled_slot` + `last_campaign_id` (deployed with US3) |
 | `reap_expired_leases()` | Sweeper: work items, deliveries, permits past lease → recoverable states |
 | `requeue_stale_assessments()` | Sweeper: assessments behind `lead_revision` → re-queue per impact rules |
 | `healthcheck() → jsonb` | Verifies roles, function set, active config sets, seed presence — contracted for quickstart smoke test |
 
 **Contracted views**: `stuck_work_overview` (non-terminal items with stale leases/deadlines), `campaign_progress` (dashboard source). Defined in `db/migrations/*views.sql`.
+
+## Required uniqueness constraints (enforced in DDL, not just convention)
+
+```sql
+-- exactly one campaign-scoped work item per service (nullable-column UNIQUE won't do this)
+CREATE UNIQUE INDEX one_campaign_work_item_per_service
+  ON work_items (campaign_id, service) WHERE scope_type = 'campaign';
+CREATE UNIQUE INDEX one_lead_work_item_per_service
+  ON work_items (campaign_lead_id, service) WHERE scope_type = 'lead';
+ALTER TABLE work_items ADD CHECK (
+  (scope_type = 'campaign' AND campaign_id IS NOT NULL AND campaign_lead_id IS NULL) OR
+  (scope_type = 'lead'     AND campaign_id IS NOT NULL AND campaign_lead_id IS NOT NULL));
+
+-- at most one current assessment per lead
+CREATE UNIQUE INDEX one_current_assessment_per_lead
+  ON lead_assessments (campaign_lead_id) WHERE is_current = true;
+```
 
 ## Security requirements (every function, both namespaces)
 
