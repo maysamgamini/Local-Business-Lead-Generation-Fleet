@@ -13,6 +13,7 @@ round-trips if ever needed.
 | Leadgen — Discovery | discovery.sdk.ts | bGlPRpKMRxnnxPm3 |
 | Leadgen — Scorer | scorer.sdk.ts | r0K3xkLN2XtUceTF |
 | Leadgen — Website Auditor | website-auditor.sdk.ts | ecfwEfnWOCn9hPN4 |
+| Leadgen — Sweeper | sweeper.sdk.ts | f5xBdfjMchJgJOzq |
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
 - `Postgres account` (default name; role `leadgen_relay`) — host `postgres`, port 5432, db `leadgen_db`. **v1 role consolidation**: `leadgen_relay` holds the full WORKER function surface (db/functions/zz_worker_consolidation.sql), so ALL worker workflows run under this one credential. Preserved boundaries: no direct DML; human-actions (approval/sales-status/disposition/suppression/cancel) stay on `leadgen_human`; config-admin isolated; dashboard read-only. To restore the per-role split later, create per-role credentials and reassign. All role passwords: `ssh ... "cat /home/ubuntu/n8n/leadgen-db.env"`.
