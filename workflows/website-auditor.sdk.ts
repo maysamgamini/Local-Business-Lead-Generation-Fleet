@@ -4,16 +4,37 @@
 // and captures material for the sales report + redesign.
 //
 // Per lead: Fetch HTML (Googlebot UA, fenced by onError):
-//   - site DOWN  -> reachable=false + max staleness (broken site = strong prospect) -> complete
-//   - site UP    -> Extract freshness (copyright year + Last-Modified -> staleness_years)
-//                   + viewport (mobile_friendly) -> PSI x3 (perf/seo/accessibility;
-//                   429 -> Defer) -> Gemini Flash VISION on a thum.io screenshot
-//                   (design_age, visual_appeal, quotable redesign_rationale, brand_colors)
-//                   -> typed evidence + a 'design_findings' evidence blob (screenshot URL,
-//                   rationale, issues, colors) stored for the report & redesign step.
+//   - site UP        -> Extract freshness (copyright year + Last-Modified -> staleness_years)
+//                       + viewport (mobile_friendly) -> Run PageSpeed
+//   - fetch ERROR    -> "Classify Fetch": 403/503 or a JS bot-challenge marker (Cloudflare/
+//                       Kasada: "Just a moment", "Checking your browser", cf-/ki-cf-botcl,
+//                       __cf_chl, challenge-platform) => SOFT BLOCK (site is LIVE, just bot-
+//                       protected). "Soft Block?" IF: true -> Run PageSpeed with HTML signals
+//                       unknown (staleness/mobile omitted, not penalized); false -> Build Down
+//                       Evidence (reachable=false + max staleness) -> Complete Down.
+//   Run PageSpeed  -> PSI x3 (perf/seo/accessibility; onError -> Defer 5m) -> Fetch Screenshot
+//                     -> Prep Image -> Gemini Vision -> Build Website Evidence -> Complete.
+// VISION (direct HTTP REST, not the googleGemini node):
+//   - Fetch Screenshot: thum.io with /wait/8/png/ (force real rendered PNG; without /png/ it
+//     returns an animated "still generating" GIF, and without /wait/ it may return a spinner).
+//   - Prep Image (Code): getBinaryDataBuffer('data').toString('base64'); passes the ACTUAL
+//     binary mimeType (not hardcoded png); builds geminiBody with generationConfig
+//     { responseMimeType:'application/json', maxOutputTokens:1200, thinkingConfig:{thinkingBudget:0} }.
+//     thinkingBudget:0 is REQUIRED — gemini-flash-latest is a thinking model and will spend the
+//     whole output budget on reasoning tokens (finishReason MAX_TOKENS, empty answer) otherwise.
+//   - Gemini Vision (HTTP POST): models/gemini-flash-latest:generateContent?key=... (stable alias;
+//     gemini-2.0/2.5-flash are retired / "no longer available to new users" on fresh projects).
+//   - Build Website Evidence parses candidates[0].content.parts[0].text ROBUSTLY: strip ``` fences,
+//     extract {..}, JSON.parse; on failure drop orphan-quote lines (the model occasionally emits a
+//     stray `"`). design_findings (+ visual_appeal/design_age) written ONLY when vision succeeds,
+//     so a transient empty vision never freezes the immutable evidence slot (a retry can fill it).
 // Gemini vision degrades gracefully (onError continue -> PSI+freshness still score).
-// Vision model: gemini-2.5-flash via existing Gemini credential (cheapest multimodal;
-// pennies per lead). PSI key is in the request URL (n8n DB); redacted to <<PSI_KEY>> here.
+// Vision model: gemini-flash-latest, key minted on n8n-hiwebenterprise (Generative Language API
+// enabled). GOTCHA: Gemini API here bills via PREPAID credits (error points to ai.studio, not
+// Cloud Console) separate from Cloud billing — a $0 balance returns 429 RESOURCE_EXHAUSTED on
+// every call; the user must fund credits at ai.studio. PSI + Gemini keys live in the request URLs
+// (n8n DB); redacted to <<PSI_KEY>>/<<GEMINI_KEY>> here (`<<...>>` breaks SDK validate — use real
+// keys when validating/creating, redact only in git).
 // New scoring features (db/seeds/scoring-v2-redesign-features.sql): mobile_friendly,
 // staleness_years, visual_appeal, pagespeed_accessibility (design_age_estimate already present).
 import { workflow, node, trigger, sticky, newCredential, expr } from '@n8n/workflow-sdk';
