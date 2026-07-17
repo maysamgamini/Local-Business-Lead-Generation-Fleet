@@ -161,7 +161,7 @@ BEGIN
       (s_service,'quality.dead_ratio_unusable','0.35'),
       (s_service,'quality.min_confidence_degraded','40'),
       (s_service,'review_window','200'),
-      (s_service,'gate.threshold_version','v1');
+      (s_service,'gate.threshold_version','"v1"');
   END IF;
 
   -- activate all five (idempotent)
