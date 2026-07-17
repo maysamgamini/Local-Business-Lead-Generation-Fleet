@@ -1,12 +1,20 @@
 // Leadgen — Website Auditor Tier 1 (deployed instance: ecfwEfnWOCn9hPN4)
-// US1 T035: per-lead deterministic audit. Claim -> get domain -> PageSpeed
-// Insights (Lighthouse lab) -> typed web_seo evidence -> complete_analysis_work_item
-// (bumps lead_revision via 'website_evidence' -> unblocks phone + assessment).
-// Credential: 'Google PSI API' (HTTP Query Auth, param key = PageSpeed key).
-// PSI is free (no budget authorization). Follow-ups (T036): tech fingerprints
-// (booking/chat widgets -> voice_ai), marketing presence (ad_presence,
-// social_inactive_90d -> ads_video), caged Claude Tier-2 agent.
-import { workflow, node, trigger, sticky, newCredential, expr } from '@n8n/workflow-sdk';
+// US1 T035. Claim -> get domain -> PageSpeed Insights (Lighthouse lab) -> typed
+// web_seo evidence -> complete_analysis_work_item (bumps lead_revision via
+// 'website_evidence' -> unblocks phone + assessment). Verified live: real
+// campaign scored (e.g. It's A Secret Med Spa web_seo 17.5 from PSI).
+//
+// HARDENING (post-429 incident):
+//  - Call spacing: batchSize 1, batchInterval 1500ms + retryOnFail (3x, 3s).
+//  - Run PageSpeed onError=continueErrorOutput -> Defer Website (defer_work_item)
+//    so a 429/timeout reschedules the lead instead of marking it unreachable.
+//  - PSI key: n8n's httpQueryAuth credential was not reaching the request, so the
+//    key is placed directly in the request URL. In the LIVE workflow the real
+//    PSI-restricted key is in the URL (n8n DB only). Here it is redacted to
+//    <<PSI_KEY>> so the repo stays clean — restore the real key when redeploying,
+//    or move it to an $env var on the n8n containers.
+import { workflow, node, trigger, sticky, expr } from '@n8n/workflow-sdk';
+import { newCredential } from '@n8n/workflow-sdk';
 
 const everyMinute = trigger({
   type: 'n8n-nodes-base.scheduleTrigger',
@@ -61,15 +69,16 @@ const runPsi = node({
   config: {
     name: 'Run PageSpeed',
     position: [1120, 340],
-    onError: 'continueRegularOutput',
+    onError: 'continueErrorOutput',
+    retryOnFail: true,
+    maxTries: 3,
+    waitBetweenTries: 3000,
     parameters: {
       method: 'GET',
-      url: expr('https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://{{ $json.website_domain }}&strategy=mobile&category=performance&category=seo'),
-      authentication: 'genericCredentialType',
-      genericAuthType: 'httpQueryAuth',
-      options: { timeout: 60000 }
-    },
-    credentials: { httpQueryAuth: newCredential('Google PSI API') }
+      url: expr('https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=https://{{ $json.website_domain }}&strategy=mobile&category=performance&category=seo&key=<<PSI_KEY>>'),
+      authentication: 'none',
+      options: { timeout: 60000, batching: { batch: { batchSize: 1, batchInterval: 1500 } } }
+    }
   },
   output: [{ lighthouseResult: { categories: { performance: { score: 0.84 }, seo: { score: 0.92 } } } }]
 });
@@ -104,8 +113,23 @@ const complete = node({
   output: [{ result: { result: 'done', new_evidence: 3 } }]
 });
 
+const deferItem = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Defer Website',
+    position: [1720, 540],
+    parameters: {
+      operation: 'executeQuery',
+      query: expr("SELECT leadgen.defer_work_item('{{ $('Claim Website Work').item.json.work_item_id }}'::uuid, '{{ $('Claim Website Work').item.json.claim_token }}'::uuid, (now() + interval '5 minutes'), 'psi_transient') AS result")
+    },
+    credentials: { postgres: newCredential('Postgres account') }
+  },
+  output: [{ result: 'deferred' }]
+});
+
 const auditNote = sticky(
-  '## Website Auditor — Tier 1 (US1, T035)\n\nPer-lead deterministic audit: claim website work -> get domain -> PageSpeed Insights (Lighthouse lab: performance + seo) -> typed web_seo evidence -> complete_analysis_work_item (bumps lead_revision -> unblocks phone + assessment -> Scorer runs).\n\n**Credential**: "Google PSI API" (HTTP Query Auth: name `key`, value = the PageSpeed Insights key). PSI is free — no budget authorization needed.\n\nA failed/unreachable site still completes the item with website_reachable=false (onError continue) — no lead stalls on a dead site.\n\n**Follow-ups**: tech fingerprints (booking/chat widgets -> voice_ai), marketing presence (ad_presence, social_inactive_90d -> ads_video), and the caged Claude Tier-2 agent (design_age, seo_gaps, conversion_blockers) are T036.',
+  '## Website Auditor — Tier 1 (US1, T035)\n\nPer-lead deterministic audit: claim -> get domain -> PageSpeed Insights (Lighthouse lab: performance + seo) -> typed web_seo evidence -> complete_analysis_work_item (bumps lead_revision -> unblocks phone + assessment -> Scorer).\n\n**Call spacing + defer**: PSI runs 1/1.5s with 3 retries; a 429/timeout routes to Defer Website (defer_work_item, ~5 min) instead of poisoning the lead. PSI (Lighthouse) is slow — 10-30s per site.\n\n**Key**: currently in the request URL (n8n DB). Move to $env or a working httpQueryAuth credential when convenient.\n\n**Follow-ups (T036)**: tech fingerprints (booking/chat -> voice_ai), marketing presence (ad_presence, social_inactive_90d -> ads_video), caged Claude Tier-2 agent.',
   [claimWork, runPsi, buildEvidence],
   { color: 5 }
 );
@@ -114,7 +138,7 @@ export default workflow('leadgen-website-auditor', 'Leadgen — Website Auditor'
   .add(everyMinute)
   .to(claimWork)
   .to(getTarget)
-  .to(runPsi)
+  .to(runPsi.onError(deferItem))
   .to(buildEvidence)
   .to(complete)
   .add(pokeWebhook)
