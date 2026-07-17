@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS %1$I.campaigns (
   resolved_place_category     text,
   geo_type                    text        NOT NULL CHECK (geo_type IN ('zip','city_radius')),
   geo_original                jsonb       NOT NULL,
-  geo_lat                     double precision NOT NULL,
-  geo_lng                     double precision NOT NULL,
+  geo_lat                     double precision,   -- filled by Discovery after geocoding
+  geo_lng                     double precision,
   geo_radius_m                integer     NOT NULL CHECK (geo_radius_m > 0),
   depth                       text        NOT NULL CHECK (depth IN ('quick','standard','deep')),
   volume_cap                  integer     NOT NULL CHECK (volume_cap BETWEEN 1 AND 300),

@@ -1,0 +1,257 @@
+-- campaign_lifecycle.sql (T023)
+-- create_campaign (trusted args, validation, caller-scoped idempotency, config
+-- pinning, deadlines, discovery work item), commit_discovery_results (fenced,
+-- ONE transaction for the whole discovery result), cancel_campaign.
+
+CREATE OR REPLACE FUNCTION @@SCHEMA@@.create_campaign(
+  p_request jsonb, p_caller_identity uuid, p_trigger_source text)
+RETURNS TABLE (campaign_id uuid, creation_status text)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE
+  v_existing uuid; v_id uuid;
+  v_sets record; v_policy jsonb;
+  v_geo jsonb; v_requires boolean; v_deadline_h numeric;
+BEGIN
+  -- ---- validation (typed errors; no campaign on violation) ----
+  IF p_request->>'schema_version' IS DISTINCT FROM '1.0' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='unsupported schema_version';
+  END IF;
+  IF coalesce(p_request->>'request_id','') = '' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='request_id required';
+  END IF;
+  v_geo := p_request->'geo';
+  IF v_geo->>'type' NOT IN ('zip','city_radius') THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001',
+      DETAIL='geo.type must be zip|city_radius (region is not supported in v1)';
+  END IF;
+  IF coalesce((v_geo->>'radius_m')::int, 0) <= 0 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo.radius_m required';
+  END IF;
+  IF p_request->>'depth' NOT IN ('quick','standard','deep') THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='invalid depth';
+  END IF;
+  IF coalesce((p_request->>'volume_cap')::int, 0) NOT BETWEEN 1 AND 300 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001',
+      DETAIL='volume_cap must be 1..300 (v1 system maximum)';
+  END IF;
+  IF p_request->'budget'->>'currency' IS DISTINCT FROM 'USD' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='v1 accepts USD only';
+  END IF;
+  IF coalesce((p_request->'budget'->>'amount')::numeric, 0) <= 0 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='budget.amount must be > 0';
+  END IF;
+  IF p_trigger_source NOT IN ('form','schedule','webhook') THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='bad trigger_source';
+  END IF;
+
+  -- ---- caller-scoped idempotency ----
+  SELECT c.id INTO v_existing FROM campaigns c
+   WHERE c.caller_identity = p_caller_identity
+     AND c.request_id = p_request->>'request_id';
+  IF v_existing IS NOT NULL THEN
+    RETURN QUERY SELECT v_existing, 'existing'::text; RETURN;
+  END IF;
+
+  -- ---- pin exactly one active config set per type ----
+  SELECT
+    (SELECT id FROM config_sets WHERE config_type='scoring'        AND activated_at IS NOT NULL AND retired_at IS NULL) AS scoring,
+    (SELECT id FROM config_sets WHERE config_type='chain_rules'    AND activated_at IS NOT NULL AND retired_at IS NULL) AS chain,
+    (SELECT id FROM config_sets WHERE config_type='vertical_policy'AND activated_at IS NOT NULL AND retired_at IS NULL) AS vertical,
+    (SELECT id FROM config_sets WHERE config_type='model_policy'   AND activated_at IS NOT NULL AND retired_at IS NULL) AS model,
+    (SELECT id FROM config_sets WHERE config_type='service_policy' AND activated_at IS NOT NULL AND retired_at IS NULL) AS service
+  INTO v_sets;
+  IF v_sets.scoring IS NULL OR v_sets.chain IS NULL OR v_sets.vertical IS NULL
+     OR v_sets.model IS NULL OR v_sets.service IS NULL THEN
+    RAISE EXCEPTION 'config_missing' USING ERRCODE='P0001',
+      DETAIL='one active config set required per type (run activate-v1 seeds)';
+  END IF;
+
+  -- deadline policy from the pinned service_policy set (hours; sane defaults)
+  SELECT coalesce(jsonb_object_agg(policy_key, policy_value), '{}') INTO v_policy
+    FROM service_policy_entries WHERE config_set_id = v_sets.service
+     AND policy_key LIKE 'deadline.%';
+
+  v_requires := coalesce((p_request->>'requires_approval')::boolean, false);
+  v_deadline_h := coalesce((v_policy->'deadline.campaign_hours'->>0)::numeric,
+                           (v_policy->>'deadline.campaign_hours')::numeric, 24);
+
+  INSERT INTO campaigns
+    (caller_identity, request_id, trigger_source, business_type,
+     geo_type, geo_original, geo_radius_m, depth, volume_cap, budget_cap_usd,
+     requires_approval, approval_status, exclusions, dry_run,
+     scoring_config_set_id, chain_rule_set_id, vertical_policy_set_id,
+     model_policy_set_id, service_policy_set_id,
+     status, campaign_deadline_at, approval_deadline_at,
+     critic_deadline_at, reconciliation_deadline_at, finalization_retry_deadline_at)
+  VALUES
+    (p_caller_identity, p_request->>'request_id', p_trigger_source,
+     p_request->>'business_type',
+     v_geo->>'type', v_geo, (v_geo->>'radius_m')::int,
+     p_request->>'depth', (p_request->>'volume_cap')::int,
+     (p_request->'budget'->>'amount')::numeric,
+     v_requires, CASE WHEN v_requires THEN 'pending' ELSE 'n/a' END,
+     coalesce(p_request->'exclusions','{"domains":[],"names":[]}'),
+     coalesce((p_request->>'dry_run')::boolean, false),
+     v_sets.scoring, v_sets.chain, v_sets.vertical, v_sets.model, v_sets.service,
+     'discovering',
+     now() + make_interval(hours => v_deadline_h::int),
+     CASE WHEN v_requires THEN now() + interval '12 hours' END,
+     now() + make_interval(hours => v_deadline_h::int),
+     now() + make_interval(hours => (v_deadline_h + 24)::int),
+     now() + make_interval(hours => (v_deadline_h + 2)::int))
+  RETURNING id INTO v_id;
+
+  -- campaign-scoped discovery work item (partial unique makes duplicates impossible)
+  INSERT INTO work_items (scope_type, campaign_id, service, state)
+  VALUES ('campaign', v_id, 'discovery', 'pending');
+
+  PERFORM _emit_event('campaign.created','state_change', true, v_id, 0,
+    jsonb_build_object('business_type', p_request->>'business_type',
+                       'depth', p_request->>'depth'),
+    'campaign.created:' || v_id);
+
+  RETURN QUERY SELECT v_id, 'created'::text;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- commit_discovery_results: THE single transaction for discovery output.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION @@SCHEMA@@.commit_discovery_results(
+  p_campaign_id uuid, p_work_item_id uuid, p_claim_token uuid, p_payload jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE
+  w work_items; c campaigns; b jsonb; obs jsonb; ev jsonb; rel jsonb;
+  v_biz uuid; v_lead uuid; v_redisc boolean; v_run_id uuid;
+  v_count int := 0; v_state text; ins record; v_related uuid;
+BEGIN
+  w := _fenced_lock_work_item(p_work_item_id, p_claim_token);
+  IF w.service <> 'discovery' OR w.scope_type <> 'campaign'
+     OR w.campaign_id <> p_campaign_id THEN
+    RAISE EXCEPTION 'invalid_transition' USING ERRCODE='P0001';
+  END IF;
+  SELECT * INTO c FROM campaigns WHERE id = p_campaign_id FOR UPDATE;
+  SELECT id INTO v_run_id FROM service_runs
+   WHERE work_item_id = w.id AND work_attempt = w.execution_attempt_count;
+
+  IF jsonb_array_length(coalesce(p_payload->'businesses','[]')) > c.volume_cap THEN
+    RAISE EXCEPTION 'invalid_payload' USING ERRCODE='P0001',
+      DETAIL='businesses exceed volume_cap';
+  END IF;
+
+  UPDATE campaigns SET
+    geo_lat = coalesce((p_payload->'geo'->>'lat')::float8, geo_lat),
+    geo_lng = coalesce((p_payload->'geo'->>'lng')::float8, geo_lng),
+    resolved_place_category = coalesce(p_payload->>'resolved_category', resolved_place_category),
+    status = CASE WHEN requires_approval AND approval_status = 'pending'
+                  THEN 'awaiting_approval' ELSE 'analyzing' END
+  WHERE id = p_campaign_id;
+
+  FOR b IN SELECT * FROM jsonb_array_elements(coalesce(p_payload->'businesses','[]')) LOOP
+    INSERT INTO businesses (place_id, business_name, website_domain, phone_e164,
+                            address, lat, lng, dedup_key, first_seen_campaign_id)
+    VALUES (b->>'place_id', b->>'name', b->>'domain', b->>'phone_e164',
+            b->>'address', (b->>'lat')::float8, (b->>'lng')::float8,
+            b->>'dedup_key', p_campaign_id)
+    ON CONFLICT (place_id) DO UPDATE SET
+      business_name = EXCLUDED.business_name,
+      website_domain = coalesce(EXCLUDED.website_domain, businesses.website_domain),
+      phone_e164 = coalesce(EXCLUDED.phone_e164, businesses.phone_e164),
+      address = coalesce(EXCLUDED.address, businesses.address),
+      last_updated = now()
+    RETURNING id, (xmax <> 0) INTO v_biz, v_redisc;
+
+    INSERT INTO campaign_leads (campaign_id, business_id, rediscovered, priority)
+    VALUES (p_campaign_id, v_biz, v_redisc, coalesce((b->>'priority')::int, 0))
+    ON CONFLICT (campaign_id, business_id) DO NOTHING
+    RETURNING id INTO v_lead;
+    IF v_lead IS NULL THEN CONTINUE; END IF;   -- duplicate within payload
+    v_count := v_count + 1;
+
+    INSERT INTO campaign_business_snapshots
+      (campaign_lead_id, business_name, website_domain, phone_e164, address, lat, lng)
+    VALUES (v_lead, b->>'name', b->>'domain', b->>'phone_e164', b->>'address',
+            (b->>'lat')::float8, (b->>'lng')::float8)
+    ON CONFLICT (campaign_lead_id) DO NOTHING;
+
+    FOR obs IN SELECT * FROM jsonb_array_elements(coalesce(b->'observations','[]')) LOOP
+      INSERT INTO discovery_observations
+        (campaign_lead_id, provider, query, geo_lat, geo_lng, radius_m, rank)
+      VALUES (v_lead, obs->>'provider', obs->>'query',
+        (obs->>'geo_lat')::float8, (obs->>'geo_lng')::float8,
+        (obs->>'radius_m')::int, (obs->>'rank')::int);
+    END LOOP;
+
+    FOR ev IN SELECT * FROM jsonb_array_elements(coalesce(b->'evidence','[]')) LOOP
+      SELECT * INTO ins FROM _insert_evidence(v_biz, p_campaign_id, 'discovery', v_run_id, ev);
+    END LOOP;
+
+    -- lead-scoped work-item graph with correct initial states
+    INSERT INTO work_items (scope_type, campaign_id, campaign_lead_id, service, state) VALUES
+      ('lead', p_campaign_id, v_lead, 'website',
+        CASE WHEN coalesce(b->>'domain','') = '' THEN 'skipped_prerequisite' ELSE 'pending' END),
+      ('lead', p_campaign_id, v_lead, 'reviews',    'pending'),
+      ('lead', p_campaign_id, v_lead, 'phone',      'blocked'),
+      ('lead', p_campaign_id, v_lead, 'enrichment', 'blocked'),
+      ('lead', p_campaign_id, v_lead, 'assessment', 'blocked')
+    ON CONFLICT DO NOTHING;
+    -- no-website leads: phone would wait forever on website; resolve now
+    IF coalesce(b->>'domain','') = '' THEN
+      UPDATE work_items SET state = 'blocked' WHERE campaign_lead_id = v_lead
+        AND service = 'phone' AND state = 'blocked';  -- reviews still pending; phone unblocks on reviews terminal via completion hook
+    END IF;
+  END LOOP;
+
+  -- typed relationships (second pass, after all businesses exist)
+  FOR b IN SELECT * FROM jsonb_array_elements(coalesce(p_payload->'businesses','[]')) LOOP
+    SELECT id INTO v_biz FROM businesses WHERE place_id = b->>'place_id';
+    FOR rel IN SELECT * FROM jsonb_array_elements(coalesce(b->'relationships','[]')) LOOP
+      SELECT id INTO v_related FROM businesses WHERE place_id = rel->>'related_place_id';
+      IF v_related IS NOT NULL AND v_related <> v_biz THEN
+        INSERT INTO business_relationships
+          (business_id, related_business_id, relationship_type, confidence, sales_target_level)
+        VALUES (v_biz, v_related, coalesce(rel->>'type','unknown'),
+          coalesce((rel->>'confidence')::numeric, 0.5),
+          coalesce(rel->>'target_level','location'))
+        ON CONFLICT DO NOTHING;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  PERFORM _emit_event('discovery.committed','state_change', true, p_campaign_id, 0,
+    jsonb_build_object('leads', v_count, 'business_type', c.business_type),
+    'discovery.committed:' || p_campaign_id);
+
+  v_state := _finish_work_item(w, 'succeeded', p_payload->'run');
+  RETURN jsonb_build_object('result', v_state, 'leads_created', v_count);
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- cancel_campaign: pending work canceled; running tokens invalidated (their
+-- completions fence-fail); settlement stays possible; spend history preserved.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION @@SCHEMA@@.cancel_campaign(p_campaign_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE c campaigns; v_n int;
+BEGIN
+  SELECT * INTO c FROM campaigns WHERE id = p_campaign_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'unknown_campaign' USING ERRCODE='P0001'; END IF;
+  IF c.status IN ('complete','failed','canceled') THEN
+    RETURN jsonb_build_object('status','already_terminal','campaign_status', c.status);
+  END IF;
+  UPDATE campaigns SET status = 'canceled',
+    completed_at = now(), completion_reason = 'canceled',
+    campaign_state_revision = campaign_state_revision + 1
+  WHERE id = p_campaign_id;
+
+  UPDATE work_items SET
+    state = 'canceled', claim_token = NULL, lease_expires_at = NULL
+  WHERE campaign_id = p_campaign_id
+    AND state IN ('blocked','pending','failed_retryable','waiting_approval','running');
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+
+  PERFORM _emit_event('campaign.completed','state_change', false, p_campaign_id, NULL,
+    jsonb_build_object('reason','canceled'), 'campaign.canceled:' || p_campaign_id);
+  RETURN jsonb_build_object('status','canceled','work_items_canceled', v_n);
+END $$;

@@ -28,11 +28,17 @@ BEGIN
                    WHEN w.state = 'done'
                         AND GREATEST(w.requested_version, v_new_rev) > w.completed_version
                      THEN 'pending'
+                   -- assessment is the only service whose 'blocked' resolves on
+                   -- evidence arrival; phone (deps) and enrichment (gate) have
+                   -- their own structural resolution paths
+                   WHEN w.state = 'blocked' AND w.service = 'assessment'
+                     THEN 'pending'
                    ELSE w.state
                  END,
          available_at = CASE
-                   WHEN w.state = 'done'
-                        AND GREATEST(w.requested_version, v_new_rev) > w.completed_version
+                   WHEN (w.state = 'done'
+                         AND GREATEST(w.requested_version, v_new_rev) > w.completed_version)
+                     OR (w.state = 'blocked' AND w.service = 'assessment')
                      THEN now()
                    ELSE w.available_at
                  END
