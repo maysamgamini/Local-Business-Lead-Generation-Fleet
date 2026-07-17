@@ -13,6 +13,7 @@ General rules: every entry scores only latest-event-`confirmed` evidence; `missi
 | review_volume, rating, review trajectory, owner_response_rate, complaint themes/quotes | Review Miner |
 | phone_pain_score, ai_receptionist_likelihood, hours_gap | Phone Presence (derived; lineage-linked) |
 | contactability inputs (verified roles/channels) | Contact Enricher (US2 — contactability is 0 until then, which is why Hot cannot exist at the US1 checkpoint) |
+| fits_in_midband_count, best/second fit, completeness | Scorer-internal derived features — computed from other scored values during assessment, no external producer |
 
 ## fit_web_seo (max 100)
 

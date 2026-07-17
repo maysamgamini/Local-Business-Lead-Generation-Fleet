@@ -55,12 +55,16 @@ Proves, via parallel psql sessions against fixture rows:
 
 **V2b (US2 checkpoint)** — rerun with enrichment fixtures: DM-verifier demotes the planted wrong-business contact; planted suppressed email never becomes outreach-usable; Hot AND-gate (75/60/60) holds.
 
-### V3 — Contract replay & idempotency
+### V3 — Contract replay & idempotency (two stages, tied to the checkpoints that make them executable)
 
+**V3a (US2 checkpoint — matches T050):**
+- Use an approval link twice → second use rejected; expired link → rejected.
+
+**V3b (US3 checkpoint — matches T055; requires the webhook intake, T053):**
 - Re-submit the same `request_id` → same campaign reference, no duplicate (FR-002).
 - Submit `volume_cap: 500` → rejected at intake (FR-003).
-- Submit `currency: "EUR"` → rejected at intake.
-- Use an approval link twice → second use rejected; expired link → rejected.
+- Submit `currency: "EUR"` or `type: "region"` geo → rejected at intake.
+- Fire the schedule twice for one slot → exactly one campaign (cursor claim).
 
 ### V4 — Golden campaign (live providers, `quick` depth, small volume)
 

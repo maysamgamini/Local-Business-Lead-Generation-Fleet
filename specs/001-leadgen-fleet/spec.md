@@ -12,7 +12,7 @@
 
 ### Session 2026-07-16
 
-- Q: Should the system of record hold human-updated sales status on delivered leads? → A: Yes, lightweight — a human-owned sales status per business (untouched / contacted / in-talks / customer / bad-lead) plus a do-not-contact flag; used by campaign exclusions and SC-009 measurement; the system never sets it and no pipeline-management features are in scope.
+- Q: Should the system of record hold human-updated sales status on delivered leads? → A: Yes, lightweight — a human-owned sales status per business (untouched / contacted / in-talks / customer / bad-lead) plus a do-not-contact flag; used by campaign exclusions and SC-009 measurement; the system never sets it and no pipeline-management features are in scope. *(Superseded in part: do-not-contact is now derived solely from active suppression records, not a business flag — see FR-027.)*
 - Q: What is the maximum number of businesses a single v1 campaign must carry through analysis? → A: 300. Requests with a volume cap above 300 are rejected at intake with a clear error; SC-001 is verified at 300 businesses / standard depth.
 - Q: How many campaigns must run concurrently in v1 without degradation? → A: 3 (any mix of manual, scheduled, API-triggered); all per-campaign guarantees hold under concurrency and SC-001 timing is verified with 3 running.
 
@@ -20,7 +20,7 @@
 
 ### User Story 1 - Run an on-demand research campaign (Priority: P1)
 
-An agency team member fills in a short request — what kind of business to research (e.g., "MedSpas"), where (e.g., zip 78613 or "Austin + 25 km"), how deep to go, and a spending limit. The system discovers matching local businesses, analyzes each one against all four agency product lines, and delivers a ranked list of qualified leads. Every lead carries a fit-profile (four product-fit scores), a classification (hot / warm / cold / disqualified), a recommended sales angle, and the concrete evidence behind every point — e.g., "14 recent reviews mention unanswered calls" with the actual quotes and their sources.
+An agency team member fills in a short request — what kind of business to research (e.g., "MedSpas"), where (e.g., zip 78613 or "Austin + 25 km"), how deep to go, and a spending limit. The system discovers matching local businesses, analyzes each one against all four agency product lines, and delivers a ranked list of qualified leads. Every lead carries a fit-profile (four product-fit scores), a classification (hot / warm / cold / disqualified), a recommended sales angle, and the concrete evidence behind every point — e.g., "14 recent reviews mention unanswered calls" with the actual quotes and their sources. Note: hot classification requires verified contact data and is completed by the contact-enrichment story (User Story 2); at this story's own checkpoint, top leads carry a hot-candidate flag pending that verification.
 
 **Why this priority**: This is the product. Without it nothing else has value; with it alone, the agency already replaces hours of manual research per lead.
 

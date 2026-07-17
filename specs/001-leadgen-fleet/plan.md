@@ -89,7 +89,10 @@ fixtures/                # Provider response fixtures (dry-run + contract tests)
 golden/                  # Golden-campaign labeled expectations
 ├── request.json  ├── expectations.json  └── baseline.md   # pinned reference deployment
 scripts/                 # deploy-db.ps1, import-workflows.ps1, run-race-tests.ps1
-docs/superpowers/specs/  # Governing technical design (v4 + plan-consistency addendum)
+docs/
+├── provider-verification.md   # T007 output: verified provider behavior + contract deltas
+├── runbook.md                  # T065 output: ops procedures
+└── superpowers/specs/          # Historical technical design (v4 + addenda; lowest precedence)
 ```
 
 **Structure Decision**: Two-tier repository — `db/` is the transactional core (deployed first, owns all invariants — including the contracted `healthcheck()` function and `stuck_work_overview` / `campaign_progress` views in `db/migrations/*views.sql`), `workflows/` is the n8n runtime layer (imports via n8n CLI/API, holds zero invariants). **Count reconciliation: 10 active service roles (Asset Collector deferred to v2 — schema ships, chain rule disabled), 16 deployed workflow definitions** (3 intakes + 9 operational incl. dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + error handler). Fixtures and golden expectations are first-class, version-controlled artifacts because the test strategy depends on them; the exact n8n version is pinned in `golden/baseline.md` at deploy time.
