@@ -1,0 +1,16 @@
+# Secrets — MCP server config contains live bearer tokens. Never commit.
+.mcp.json
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
+
+# Unrelated to this project (third-party Blender addon living in the same folder)
+addon.py
+
+# Stale duplicate speckit scaffold from an earlier init (root .specify/ is canonical)
+leadgen-automation/
+
+# n8n / node artifacts
+node_modules/
+*.env
+.env*
