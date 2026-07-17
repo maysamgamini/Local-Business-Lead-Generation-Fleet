@@ -31,6 +31,7 @@ GRANT EXECUTE ON FUNCTION
   @@SCHEMA@@.reap_expired_leases(),
   @@SCHEMA@@.requeue_retryable_work(integer),
   @@SCHEMA@@.requeue_stale_assessments(),
+  @@SCHEMA@@.skip_disabled_service_work(),
   @@SCHEMA@@.reconcile_expired_reservations(),
   @@SCHEMA@@.begin_campaign_finalization(uuid),
   @@SCHEMA@@.complete_campaign_finalization(uuid,uuid,bigint,jsonb),

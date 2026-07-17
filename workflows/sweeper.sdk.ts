@@ -1,11 +1,12 @@
 // Leadgen — Sweeper (deployed instance: f5xBdfjMchJgJOzq)
 // US1 T041: every 2 min, one maintenance round-trip + a campaign finalization pass.
 //
-// Run Maintenance (single query):
-//   - skips nonterminal work_items whose service is DISABLED in service_config
-//     (Option A / migration 110 — a service with no shipped worker, e.g. US1
-//     reviews/phone/enrichment/assets, is marked skipped_prerequisite so campaigns
-//     can finalize without it), then
+// Run Maintenance (single query, all SECURITY DEFINER fns — workers hold NO direct
+// DML, so the disabled-service skip MUST be a function, not an inline UPDATE):
+//   - skip_disabled_service_work: marks nonterminal work_items whose service is
+//     DISABLED in service_config (Option A / migration 110 — a service with no
+//     shipped worker, e.g. US1 reviews/phone/enrichment/assets) skipped_prerequisite
+//     so campaigns can finalize without it, then
 //   - reap_expired_leases · requeue_retryable_work · requeue_stale_assessments ·
 //     reconcile_expired_reservations (stuck work self-heals).
 //
@@ -39,7 +40,7 @@ const runMaintenance = node({
     position: [560, 300],
     parameters: {
       operation: 'executeQuery',
-      query: "WITH skipped AS (UPDATE leadgen.work_items wi SET state='skipped_prerequisite' FROM leadgen.service_config sc WHERE sc.service=wi.service AND sc.enabled=false AND wi.state NOT IN ('done','dead','skipped_gate','skipped_budget','skipped_prerequisite','canceled') RETURNING 1) SELECT (SELECT count(*) FROM skipped) AS disabled_skipped, leadgen.reap_expired_leases() AS reaped, leadgen.requeue_retryable_work() AS requeued, leadgen.requeue_stale_assessments() AS stale_requeued, leadgen.reconcile_expired_reservations() AS budget_reconciled"
+      query: "SELECT leadgen.skip_disabled_service_work() AS disabled_skipped, leadgen.reap_expired_leases() AS reaped, leadgen.requeue_retryable_work() AS requeued, leadgen.requeue_stale_assessments() AS stale_requeued, leadgen.reconcile_expired_reservations() AS budget_reconciled"
     },
     credentials: { postgres: newCredential('Postgres account') }
   },

@@ -68,6 +68,24 @@ BEGIN
   RETURN jsonb_build_object('requeued', v_requeued, 'dead', v_dead);
 END $$;
 
+-- Disabled-service cleanup: any nonterminal work item whose service is disabled in
+-- service_config (no worker shipped yet) is marked terminal (skipped_prerequisite),
+-- so a campaign can finalize without it. Idempotent; safety-net for items created
+-- before a service was disabled (commit_discovery_results gates new ones at creation).
+CREATE OR REPLACE FUNCTION @@SCHEMA@@.skip_disabled_service_work()
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE v_n int;
+BEGIN
+  UPDATE work_items wi SET state = 'skipped_prerequisite'
+  FROM service_config sc
+  WHERE sc.service = wi.service AND sc.enabled = false
+    AND wi.state NOT IN
+      ('done','dead','skipped_gate','skipped_budget','skipped_prerequisite','canceled');
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n;
+END $$;
+
 -- Assessments behind the watermark: reopen assessment work per lead where the
 -- current assessment (or none) is older than lead_revision.
 CREATE OR REPLACE FUNCTION @@SCHEMA@@.requeue_stale_assessments()
