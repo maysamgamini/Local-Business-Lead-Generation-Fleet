@@ -11,6 +11,7 @@ round-trips if ever needed.
 | Leadgen — Error Handler | error-handler.sdk.ts | YebUjdNTwGqPy4M9 |
 | Leadgen — Intake Form | intake-form.sdk.ts | SzTS1b6tJHnQmvY3 |
 | Leadgen — Discovery | discovery.sdk.ts | bGlPRpKMRxnnxPm3 |
+| Leadgen — Scorer | scorer.sdk.ts | r0K3xkLN2XtUceTF |
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
 - `Postgres account` (default name; currently the relay/edge role `leadgen_relay`) — host `postgres`, port 5432, db `leadgen_db`
