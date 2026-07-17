@@ -67,7 +67,7 @@
 
 **Independent Test**: Submit one form request for a known business type/area; verify an opportunity-ranked list where every fit score traces to verified evidence via score_components, mismatches were filtered, a planted fabricated quote died at the quote-checker, and the campaign reached a defined terminal state — all without any US2/US3/US4 functionality existing.
 
-- [ ] T031 [US1] `workflows/intake-form.json` — n8n Form → canonical validation → `create_campaign()` (internal caller identity, trigger_source=form)
+- [X] T031 [US1] `workflows/intake-form.json` — n8n Form → canonical validation → `create_campaign()` (internal caller identity, trigger_source=form)
 - [ ] T032 [P] [US1] Fixtures for the golden vertical: `fixtures/places/`, `fixtures/serpapi/`, `fixtures/apify-reviews/` (incl. planted fabricated quote), `fixtures/psi/` + `golden/request.json`
 - [ ] T033 [US1] `workflows/discovery.json` — claim campaign-scoped item, geocode, Places (depth 20/60/grid, renew_lease on grid) ∥ SerpAPI (ranks → discovery_observations), merge/dedup (place_id→phone→fuzzy), typed `business_relationships` (confidence + evidence + sales_target_level, FR-009), **`photo_asset_count` evidence from Places photo metadata**, hard filter (category/geo/exclusions/suppressions/sales-status), volume_cap by evidence richness, `commit_discovery_results()`
 - [ ] T034 [P] [US1] `workflows/fetch-page.json` — shared hardened fetch sub-workflow (SSRF cage per contracts §7: private-IP block post-DNS, ≤3 re-validated redirects, size cap, sanitization)
