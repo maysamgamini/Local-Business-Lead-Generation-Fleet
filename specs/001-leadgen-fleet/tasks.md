@@ -14,13 +14,13 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create repository structure per plan.md: `db/{migrations,functions,seeds,tests}/`, `workflows/`, `fixtures/{places,serpapi,apify-reviews,apollo,hunter,psi,critics}/`, `golden/`, `scripts/`, `docs/`
-- [ ] T002 Write `scripts/deploy-db.ps1` — ordered migration runner + function deployer for both namespaces (`leadgen`, `leadgen_dryrun`), idempotent re-runs
-- [ ] T003 [P] Write `scripts/import-workflows.ps1` — n8n CLI/API import of `workflows/*.json` with credential-mapping notes
+- [X] T001 Create repository structure per plan.md: `db/{migrations,functions,seeds,tests}/`, `workflows/`, `fixtures/{places,serpapi,apify-reviews,apollo,hunter,psi,critics}/`, `golden/`, `scripts/`, `docs/`
+- [X] T002 Write `scripts/deploy-db.ps1` — ordered migration runner + function deployer for both namespaces (`leadgen`, `leadgen_dryrun`), idempotent re-runs
+- [X] T003 [P] Write `scripts/import-workflows.ps1` — n8n CLI/API import of `workflows/*.json` with credential-mapping notes
 - [ ] T004 Configure n8n runtime on the Lightsail host: queue mode (main + 2 workers + Redis via the modified `withPostgresAndWorker` compose), external task runners, execution pruning; pin exact n8n version (currently 2.30.4) and record the reference deployment in `golden/baseline.md`
-- [ ] T005 [P] Write `fixtures/README.md`: supported fixture request_ids, provider fixtures, planted failure cases (fabricated quote, wrong-business contact), expected synthetic charges, expected evidence & scores
-- [ ] T006 Create `leadgen_db`, schemas `leadgen` + `leadgen_dryrun`, DB roles (analyzer, scorer, enricher, sweeper, relay, human-actions, dashboard-read + dry-run counterparts) in `db/migrations/000_database_roles.sql`
-- [ ] T007 Verify current provider behavior BEFORE building provider workflows (research.md R-15): Places Text Search pagination ceiling, PSI-vs-CrUX field-data status; record findings + any contract deltas in `docs/provider-verification.md` and adjust `fixtures/` shapes accordingly
+- [X] T005 [P] Write `fixtures/README.md`: supported fixture request_ids, provider fixtures, planted failure cases (fabricated quote, wrong-business contact), expected synthetic charges, expected evidence & scores
+- [X] T006 Create `leadgen_db`, schemas `leadgen` + `leadgen_dryrun`, DB roles (analyzer, scorer, enricher, sweeper, relay, human-actions, dashboard-read + dry-run counterparts) in `db/migrations/000_database_roles.sql`
+- [X] T007 Verify current provider behavior BEFORE building provider workflows (research.md R-15): Places Text Search pagination ceiling, PSI-vs-CrUX field-data status; record findings + any contract deltas in `docs/provider-verification.md` and adjust `fixtures/` shapes accordingly
 
 ---
 
