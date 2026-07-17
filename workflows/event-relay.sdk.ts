@@ -1,5 +1,11 @@
 // Leadgen — Event Relay (deployed instance: D2O53VaniWo0i6T7)
 // Deploy/update via n8n MCP create_workflow_from_code / update_workflow.
+// GOTCHA (fixed 2026-07-17): the n8n Postgres node's `queryReplacement` did NOT bind a
+// 3rd comma-separated value here — a query referencing $3 raised Postgres "there is no
+// parameter $3" and crashed the node (which then leased-out + exponential-backed-off the
+// whole outbox, silently stalling all deliveries). Fix: the 3rd arg (result_hash / error
+// text) is informational and either constant or a controlled enum, so INLINE it in the SQL
+// and parameterize only the two UUIDs. Keep multi-value queryReplacement to 2 params max here.
 import { workflow, node, trigger, sticky, ifElse, newCredential, expr } from '@n8n/workflow-sdk';
 
 const everyMinute = trigger({
@@ -81,8 +87,8 @@ const completeChainEval = node({
     position: [1460, 200],
     parameters: {
       operation: 'executeQuery',
-      query: "SELECT leadgen.complete_outbox_delivery($1::uuid, $2::uuid, $3, 'relay-v1') AS result",
-      options: { queryReplacement: expr("{{ $('Claim Deliveries').item.json.delivery_id }},{{ $('Claim Deliveries').item.json.claim_token }},chain-eval") }
+      query: "SELECT leadgen.complete_outbox_delivery($1::uuid, $2::uuid, 'chain-eval', 'relay-v1') AS result",
+      options: { queryReplacement: expr("{{ $('Claim Deliveries').item.json.delivery_id }},{{ $('Claim Deliveries').item.json.claim_token }}") }
     },
     credentials: { postgres: newCredential('Leadgen Postgres (relay)') }
   },
@@ -97,8 +103,8 @@ const failChainEval = node({
     position: [1460, 360],
     parameters: {
       operation: 'executeQuery',
-      query: "SELECT leadgen.fail_outbox_delivery($1::uuid, $2::uuid, $3) AS result",
-      options: { queryReplacement: expr("{{ $('Claim Deliveries').item.json.delivery_id }},{{ $('Claim Deliveries').item.json.claim_token }},chain eval failed") }
+      query: "SELECT leadgen.fail_outbox_delivery($1::uuid, $2::uuid, 'chain eval failed') AS result",
+      options: { queryReplacement: expr("{{ $('Claim Deliveries').item.json.delivery_id }},{{ $('Claim Deliveries').item.json.claim_token }}") }
     },
     credentials: { postgres: newCredential('Leadgen Postgres (relay)') }
   },
@@ -113,8 +119,8 @@ const completeNoop = node({
     position: [1160, 520],
     parameters: {
       operation: 'executeQuery',
-      query: "SELECT leadgen.complete_outbox_delivery($1::uuid, $2::uuid, $3, 'relay-v1') AS result",
-      options: { queryReplacement: expr('{{ $json.delivery_id }},{{ $json.claim_token }},noop-v1:{{ $json.destination }}') }
+      query: "SELECT leadgen.complete_outbox_delivery($1::uuid, $2::uuid, 'noop-v1:{{ $json.destination }}', 'relay-v1') AS result",
+      options: { queryReplacement: expr('{{ $json.delivery_id }},{{ $json.claim_token }}') }
     },
     credentials: { postgres: newCredential('Leadgen Postgres (relay)') }
   },
