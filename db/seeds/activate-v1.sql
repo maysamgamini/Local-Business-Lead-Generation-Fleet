@@ -174,8 +174,6 @@ END $inner$;
 -- ============ operational config (mutable; upsert every run) ============
 -- enabled: US1 ships discovery/website/reviews/phone/assessment; enrichment/assets
 -- have no worker yet (commit_discovery_results creates their items terminal).
--- assessment claim_batch_size = 1: the Scorer workflow processes one lead per run,
--- so claiming a larger batch would orphan the extras (claimed-but-never-completed).
 -- enabled is set on INSERT only (kept out of the ON CONFLICT update) so a runtime
 -- "flip a service on" is not clobbered by re-running this seed.
 INSERT INTO %1$I.service_config
@@ -185,7 +183,7 @@ INSERT INTO %1$I.service_config
   ('reviews',    5, 5, NULL, 600, '{"apify_batch":0.25,"llm_est":0.02}', true),
   ('phone',      5, 5, NULL, 300, '{}', true),
   ('enrichment', 3, 3, NULL, 600, '{"apollo_lookup":0.40,"hunter_verify":0.10}', false),
-  ('assessment', 1, 5, NULL, 300, '{"llm_est":0.03}', true),
+  ('assessment', 5, 5, NULL, 300, '{"llm_est":0.03}', true),
   ('assets',     1, 1, NULL, 300, '{}', false)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
