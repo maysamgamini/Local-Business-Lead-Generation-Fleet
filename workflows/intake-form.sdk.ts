@@ -23,13 +23,12 @@ const campaignForm = trigger({
           { fieldLabel: 'Depth', fieldType: 'dropdown', fieldOptions: { values: [{ option: 'quick' }, { option: 'standard' }, { option: 'deep' }] }, requiredField: true },
           { fieldLabel: 'Volume Cap', fieldType: 'number', defaultValue: '25', requiredField: true },
           { fieldLabel: 'Budget USD', fieldType: 'number', defaultValue: '25', requiredField: true },
-          { fieldLabel: 'Require Approval Before Contact Spending', fieldType: 'dropdown', fieldOptions: { values: [{ option: 'Yes' }, { option: 'No' }] }, defaultValue: 'Yes', requiredField: true },
           { fieldLabel: 'Exclude Domains', fieldType: 'textarea', placeholder: 'comma-separated domains to skip (existing clients, competitors)' }
         ]
       }
     }
   },
-  output: [{ 'Business Type': 'med spa', 'Geo Mode': 'zip', 'Zip Code': '78613', 'City': '', 'Radius Km': 15, 'Depth': 'quick', 'Volume Cap': 25, 'Budget USD': 25, 'Require Approval Before Contact Spending': 'Yes', 'Exclude Domains': '', submittedAt: '2026-07-17T12:00:00.000Z', formMode: 'production' }]
+  output: [{ 'Business Type': 'med spa', 'Geo Mode': 'zip', 'Zip Code': '78613', 'City': '', 'Radius Km': 15, 'Depth': 'quick', 'Volume Cap': 25, 'Budget USD': 25, 'Exclude Domains': '', submittedAt: '2026-07-17T12:00:00.000Z', formMode: 'production' }]
 });
 
 const buildRequest = node({
@@ -41,10 +40,10 @@ const buildRequest = node({
     parameters: {
       mode: 'raw',
       includeOtherFields: false,
-      jsonOutput: expr('{{ { "request": { "schema_version": "1.0", "request_id": "form-" + $execution.id, "business_type": $json["Business Type"], "geo": ($json["Geo Mode"] === "zip" ? { "type": "zip", "zip": ($json["Zip Code"] || "").toString().trim(), "radius_m": Math.round(Number($json["Radius Km"]) * 1000) } : { "type": "city_radius", "city": ($json["City"] || "").toString().trim(), "radius_m": Math.round(Number($json["Radius Km"]) * 1000) }), "depth": $json["Depth"], "volume_cap": Math.round(Number($json["Volume Cap"])), "budget": { "amount": Number($json["Budget USD"]), "currency": "USD" }, "requires_approval": $json["Require Approval Before Contact Spending"] === "Yes", "exclusions": { "domains": ($json["Exclude Domains"] || "").split(",").map(s => s.trim().toLowerCase()).filter(s => s.length > 0), "names": [] }, "dry_run": false } } }}')
+      jsonOutput: expr('{{ { "request": { "schema_version": "1.0", "request_id": "form-" + $execution.id, "business_type": $json["Business Type"], "geo": ($json["Geo Mode"] === "zip" ? { "type": "zip", "zip": ($json["Zip Code"] || "").toString().trim(), "radius_m": Math.round(Number($json["Radius Km"]) * 1000) } : { "type": "city_radius", "city": ($json["City"] || "").toString().trim(), "radius_m": Math.round(Number($json["Radius Km"]) * 1000) }), "depth": $json["Depth"], "volume_cap": Math.round(Number($json["Volume Cap"])), "budget": { "amount": Number($json["Budget USD"]), "currency": "USD" }, "requires_approval": false, "exclusions": { "domains": ($json["Exclude Domains"] || "").split(",").map(s => s.trim().toLowerCase()).filter(s => s.length > 0), "names": [] }, "dry_run": false } } }}')
     }
   },
-  output: [{ request: { schema_version: '1.0', request_id: 'form-123', business_type: 'med spa', geo: { type: 'zip', zip: '78613', radius_m: 15000 }, depth: 'quick', volume_cap: 25, budget: { amount: 25, currency: 'USD' }, requires_approval: true, exclusions: { domains: [], names: [] }, dry_run: false } }]
+  output: [{ request: { schema_version: '1.0', request_id: 'form-123', business_type: 'med spa', geo: { type: 'zip', zip: '78613', radius_m: 15000 }, depth: 'quick', volume_cap: 25, budget: { amount: 25, currency: 'USD' }, requires_approval: false, exclusions: { domains: [], names: [] }, dry_run: false } }]
 });
 
 const createCampaign = node({
@@ -82,7 +81,7 @@ const confirmation = node({
 });
 
 const intakeNote = sticky(
-  '## Form Intake (US1, T031)\n\nNormalizes the form into the canonical request and calls create_campaign() with the TRUSTED caller identity for form submissions (bbbbbbbb-...-0001) and trigger_source=form.\n\nValidation lives in the SQL function (typed errors); a rejected request errors this execution and surfaces via the global error handler. requires_approval defaults Yes per spec FR-022.\n\nJSON is embedded with quote-doubling because Postgres-node queryReplacement splits on commas.',
+  '## Form Intake (US1, T031)\n\nNormalizes the form into the canonical request and calls create_campaign() with the TRUSTED caller identity for form submissions (bbbbbbbb-...-0001) and trigger_source=form.\n\nValidation lives in the SQL function (typed errors); a rejected request errors this execution and surfaces via the global error handler. Form submissions are hardcoded requires_approval=false (no human gate for self-serve form runs; the approval-link workflow is US2/T044 and not yet deployed).\n\nJSON is embedded with quote-doubling because Postgres-node queryReplacement splits on commas.',
   [buildRequest, createCampaign],
   { color: 5 }
 );
