@@ -1,7 +1,8 @@
 -- 120_lead_reports.sql — client-facing report registry (Report Generator, US4-adjacent)
 -- One current report per lead (regeneration upserts). Stores the shareable bucket URL,
--- the object key, a short summary, and the HTML itself (DB = durable second copy; the
--- bucket = the served copy — that is the "double copy" without a second cloud).
+-- the object key, and a short summary. The `html` column exists but is left empty by the
+-- generator (bucket-only delivery, no DB copy — per product decision); reports regenerate
+-- from the ledger anyway. The S3 object is the single served copy.
 
 \set ON_ERROR_STOP 1
 
