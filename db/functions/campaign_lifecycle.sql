@@ -203,6 +203,21 @@ BEGIN
     FROM service_config sc
     WHERE sc.service IN ('website','reviews','phone','enrichment','assessment')
     ON CONFLICT DO NOTHING;
+
+    -- Leads with NO runnable analyzer (e.g. no-website + reviews/phone disabled)
+    -- would never see an analyzer completion, so their assessment would stay
+    -- blocked forever. A missing website is itself the top redesign signal, so
+    -- advance the revision on the discovery evidence: the discovery_evidence ->
+    -- assessment impact rule unblocks + scores them off discovery alone. Leads
+    -- with a runnable analyzer are left to score after that analyzer completes.
+    IF NOT EXISTS (
+      SELECT 1 FROM work_items a
+       WHERE a.campaign_lead_id = v_lead AND a.service IN ('website','reviews','phone')
+         AND a.state NOT IN ('done','dead','skipped_gate','skipped_budget',
+                             'skipped_prerequisite','canceled')
+    ) THEN
+      PERFORM advance_lead_revision(v_lead, 'discovery_evidence');
+    END IF;
   END LOOP;
 
   -- typed relationships (second pass, after all businesses exist)

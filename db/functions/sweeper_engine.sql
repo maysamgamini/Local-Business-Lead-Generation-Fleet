@@ -87,7 +87,12 @@ BEGIN
 END $$;
 
 -- Assessments behind the watermark: reopen assessment work per lead where the
--- current assessment (or none) is older than lead_revision.
+-- current assessment (or none) is older than lead_revision. A 'done' assessment
+-- reopens when its completed_version trails; a 'dead' assessment revives only when
+-- GENUINELY NEW evidence arrived since its last attempt (lead_revision >
+-- requested_version) — bounded against a dead<->pending loop for an item that keeps
+-- failing on the same revision — and gets a fresh retry budget (counters reset,
+-- but never execution_attempt_count: that is the service_runs key).
 CREATE OR REPLACE FUNCTION @@SCHEMA@@.requeue_stale_assessments()
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
@@ -95,14 +100,18 @@ DECLARE v_n int;
 BEGIN
   UPDATE work_items w SET
     requested_version = GREATEST(w.requested_version, cl.lead_revision),
-    state = CASE WHEN w.state = 'done' THEN 'pending' ELSE w.state END,
-    available_at = CASE WHEN w.state = 'done' THEN now() ELSE w.available_at END
+    state = CASE WHEN w.state IN ('done','dead') THEN 'pending' ELSE w.state END,
+    available_at = CASE WHEN w.state IN ('done','dead') THEN now() ELSE w.available_at END,
+    retryable_failure_count = CASE WHEN w.state = 'dead' THEN 0 ELSE w.retryable_failure_count END,
+    error_code = CASE WHEN w.state = 'dead' THEN NULL ELSE w.error_code END
   FROM campaign_leads cl
   WHERE cl.id = w.campaign_lead_id
     AND w.service = 'assessment'
-    AND w.state IN ('done','pending','failed_retryable')
     AND w.completed_version < cl.lead_revision
-    AND w.requested_version < cl.lead_revision;
+    AND (
+      (w.state IN ('done','pending','failed_retryable') AND w.requested_version < cl.lead_revision)
+      OR (w.state = 'dead' AND w.requested_version < cl.lead_revision)
+    );
   GET DIAGNOSTICS v_n = ROW_COUNT;
   RETURN v_n;
 END $$;

@@ -125,6 +125,7 @@ BEGIN
 
     -- ============ revision impact rules (self-requeue never mapped) ============
     INSERT INTO %1$I.revision_impact_rules (cause_type, affected_service) VALUES
+      ('discovery_evidence','assessment'),
       ('website_evidence','phone'), ('website_evidence','assessment'),
       ('reviews_evidence','phone'), ('reviews_evidence','assessment'),
       ('phone_evidence','assessment'),
@@ -171,15 +172,21 @@ BEGIN
 END $inner$;
 
 -- ============ operational config (mutable; upsert every run) ============
+-- enabled: US1 ships discovery/website/assessment only; reviews/phone/enrichment/
+-- assets have no worker yet (commit_discovery_results creates their items terminal).
+-- assessment claim_batch_size = 1: the Scorer workflow processes one lead per run,
+-- so claiming a larger batch would orphan the extras (claimed-but-never-completed).
+-- enabled is set on INSERT only (kept out of the ON CONFLICT update) so a runtime
+-- "flip a service on" is not clobbered by re-running this seed.
 INSERT INTO %1$I.service_config
-  (service, claim_batch_size, max_concurrency, rate_limit_per_minute, lease_ttl_s, unit_costs) VALUES
-  ('discovery',  1, 2, NULL, 900, '{"places_page":0.017,"serpapi_search":0.01}'),
-  ('website',    5, 5, NULL, 600, '{"psi_call":0.0,"llm_est":0.05}'),
-  ('reviews',    5, 5, NULL, 600, '{"apify_batch":0.25,"llm_est":0.02}'),
-  ('phone',      5, 5, NULL, 300, '{}'),
-  ('enrichment', 3, 3, NULL, 600, '{"apollo_lookup":0.40,"hunter_verify":0.10}'),
-  ('assessment', 5, 5, NULL, 300, '{"llm_est":0.03}'),
-  ('assets',     1, 1, NULL, 300, '{}')
+  (service, claim_batch_size, max_concurrency, rate_limit_per_minute, lease_ttl_s, unit_costs, enabled) VALUES
+  ('discovery',  1, 2, NULL, 900, '{"places_page":0.017,"serpapi_search":0.01}', true),
+  ('website',    5, 5, NULL, 600, '{"psi_call":0.0,"llm_est":0.05}', true),
+  ('reviews',    5, 5, NULL, 600, '{"apify_batch":0.25,"llm_est":0.02}', false),
+  ('phone',      5, 5, NULL, 300, '{}', false),
+  ('enrichment', 3, 3, NULL, 600, '{"apollo_lookup":0.40,"hunter_verify":0.10}', false),
+  ('assessment', 1, 5, NULL, 300, '{"llm_est":0.03}', true),
+  ('assets',     1, 1, NULL, 300, '{}', false)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
   max_concurrency = EXCLUDED.max_concurrency,

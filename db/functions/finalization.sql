@@ -41,7 +41,13 @@ BEGIN
      AND cl.lead_revision > 0
      AND NOT EXISTS (SELECT 1 FROM lead_assessments a
            WHERE a.campaign_lead_id = cl.id AND a.is_current = true
-             AND a.evidence_watermark >= cl.lead_revision);
+             AND a.evidence_watermark >= cl.lead_revision)
+     -- a 'dead' assessment is terminal (Sweeper gave up after transient failures
+     -- with no new evidence to justify revival); it must not block finalization
+     -- forever — quality_state reflects it via the dead work-item ratio instead.
+     AND NOT EXISTS (SELECT 1 FROM work_items w
+           WHERE w.campaign_lead_id = cl.id AND w.service = 'assessment'
+             AND w.state = 'dead');
   SELECT count(*) INTO v_open_critics FROM critic_reviews cr
     JOIN campaign_leads cl ON cl.id = cr.campaign_lead_id
    WHERE cl.campaign_id = c.id AND cr.state IN ('open','reverifying');
