@@ -172,8 +172,8 @@ BEGIN
 END $inner$;
 
 -- ============ operational config (mutable; upsert every run) ============
--- enabled: US1 ships discovery/website/assessment only; reviews/phone/enrichment/
--- assets have no worker yet (commit_discovery_results creates their items terminal).
+-- enabled: US1 ships discovery/website/reviews/assessment; phone/enrichment/assets
+-- have no worker yet (commit_discovery_results creates their items terminal).
 -- assessment claim_batch_size = 1: the Scorer workflow processes one lead per run,
 -- so claiming a larger batch would orphan the extras (claimed-but-never-completed).
 -- enabled is set on INSERT only (kept out of the ON CONFLICT update) so a runtime
@@ -182,7 +182,7 @@ INSERT INTO %1$I.service_config
   (service, claim_batch_size, max_concurrency, rate_limit_per_minute, lease_ttl_s, unit_costs, enabled) VALUES
   ('discovery',  1, 2, NULL, 900, '{"places_page":0.017,"serpapi_search":0.01}', true),
   ('website',    5, 5, NULL, 600, '{"psi_call":0.0,"llm_est":0.05}', true),
-  ('reviews',    5, 5, NULL, 600, '{"apify_batch":0.25,"llm_est":0.02}', false),
+  ('reviews',    5, 5, NULL, 600, '{"apify_batch":0.25,"llm_est":0.02}', true),
   ('phone',      5, 5, NULL, 300, '{}', false),
   ('enrichment', 3, 3, NULL, 600, '{"apollo_lookup":0.40,"hunter_verify":0.10}', false),
   ('assessment', 1, 5, NULL, 300, '{"llm_est":0.03}', true),
