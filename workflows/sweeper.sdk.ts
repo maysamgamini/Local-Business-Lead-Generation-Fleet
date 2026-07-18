@@ -107,9 +107,29 @@ const completeFinalization = node({
   output: [{ result: { status: 'complete', quality_state: 'healthy' } }]
 });
 
+// After a campaign finalizes, fire the Report Generator in batch mode for its warm/hot
+// leads (fire-and-forget: short timeout + onError continue, so finalization never blocks;
+// the report workflow runs in its own execution and finishes even if this caller times out).
+const fireReports = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.4,
+  config: {
+    name: 'Fire Reports',
+    position: [1840, 220],
+    onError: 'continueRegularOutput',
+    parameters: {
+      method: 'POST',
+      url: 'https://n8n.hiwebenterprise.com/webhook/leadgen-report',
+      sendBody: true, specifyBody: 'json',
+      jsonBody: expr('={ "campaign_id": "{{ $(\'Begin Finalization\').item.json.campaign_id }}" }'),
+      options: { timeout: 8000 }
+    }
+  }
+});
+
 export default workflow('leadgen-sweeper', 'Leadgen — Sweeper')
   .add(everyTwoMin)
   .to(runMaintenance)
   .to(findFinalizable)
   .to(beginFinalization)
-  .to(readyToComplete.onTrue(completeFinalization));
+  .to(readyToComplete.onTrue(completeFinalization.to(fireReports)));
