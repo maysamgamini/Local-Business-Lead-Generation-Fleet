@@ -75,12 +75,13 @@ BEGIN
            <> (a.opportunity_score >= 75 AND a.evidence_confidence >= 60)
   ), 'A3 hot_candidate == (opportunity>=75 AND confidence>=60)');
 
-  -- A4 Classification matches opportunity thresholds (warm>=60, cold>=40, else dq).
+  -- A4 Classification matches opportunity thresholds (warm>=45, cold>=40, else dq).
+  -- (warm lowered 60->45 on 2026-07-18; thresholds enforced in Scorer jsCode.)
   PERFORM pg_temp._assert(NOT EXISTS (
     SELECT 1 FROM lead_assessments a JOIN campaign_leads cl ON cl.id = a.campaign_lead_id
      WHERE a.is_current AND cl.classification IS NOT NULL
        AND cl.classification <> CASE
-             WHEN a.opportunity_score >= 60 THEN 'warm'
+             WHEN a.opportunity_score >= 45 THEN 'warm'
              WHEN a.opportunity_score >= 40 THEN 'cold'
              ELSE 'disqualified' END
   ), 'A4 classification consistent with opportunity thresholds');

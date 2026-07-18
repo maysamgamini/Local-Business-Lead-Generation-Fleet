@@ -112,7 +112,10 @@ BEGIN
     (s_scoring,'thresholds','hot_contactability','composite',NULL,NULL,NULL,60,NULL,NULL,'no_points','count_roots_only'),
     (s_scoring,'thresholds','hot_confidence','composite',NULL,NULL,NULL,60,NULL,NULL,'no_points','count_roots_only'),
     (s_scoring,'thresholds','hot_candidate_confidence','composite',NULL,NULL,NULL,60,NULL,NULL,'no_points','count_roots_only'),
-    (s_scoring,'thresholds','warm_opportunity','composite',NULL,NULL,NULL,60,NULL,NULL,'no_points','count_roots_only'),
+    -- NOTE: warm/cold thresholds + the opportunity formula are enforced in the Scorer
+    -- jsCode (workflow r0K3xkLN2XtUceTF), not read from these rows; these document intent.
+    -- Lowered warm 60 -> 45 on 2026-07-18 (established verticals score 45-55 warm).
+    (s_scoring,'thresholds','warm_opportunity','composite',NULL,NULL,NULL,45,NULL,NULL,'no_points','count_roots_only'),
     (s_scoring,'thresholds','cold_opportunity','composite',NULL,NULL,NULL,40,NULL,NULL,'no_points','count_roots_only'),
     (s_scoring,'thresholds','enrichment_gate','composite',NULL,NULL,NULL,60,NULL,NULL,'no_points','count_roots_only');
 
