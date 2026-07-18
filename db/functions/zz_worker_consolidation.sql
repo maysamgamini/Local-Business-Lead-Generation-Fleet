@@ -32,6 +32,7 @@ GRANT EXECUTE ON FUNCTION
   @@SCHEMA@@.requeue_retryable_work(integer),
   @@SCHEMA@@.requeue_stale_assessments(),
   @@SCHEMA@@.skip_disabled_service_work(),
+  @@SCHEMA@@.record_lead_report(uuid,text,text,text,text,text),
   @@SCHEMA@@.reconcile_expired_reservations(),
   @@SCHEMA@@.begin_campaign_finalization(uuid),
   @@SCHEMA@@.complete_campaign_finalization(uuid,uuid,bigint,jsonb),
