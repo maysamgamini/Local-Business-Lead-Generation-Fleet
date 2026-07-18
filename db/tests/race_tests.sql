@@ -20,8 +20,10 @@ END $$;
 DO $$
 DECLARE cid uuid;
 BEGIN
-  FOR cid IN SELECT id FROM campaigns
-    WHERE caller_identity = 'aaaaaaaa-0000-0000-0000-000000000001' LOOP
+  -- Reset ALL dryrun campaigns (not just the fixture caller): claim_work_items is a
+  -- GLOBAL queue (workers are shared across campaigns), so leftover work items from any
+  -- prior run would make claims non-deterministic and break the cancellation assertion.
+  FOR cid IN SELECT id FROM campaigns LOOP
     DELETE FROM chain_rule_evaluations WHERE campaign_lead_id IN
       (SELECT id FROM campaign_leads WHERE campaign_id = cid);
     DELETE FROM score_log WHERE campaign_lead_id IN
@@ -66,7 +68,6 @@ BEGIN
     DELETE FROM work_items WHERE campaign_id = cid;
     DELETE FROM campaign_leads WHERE campaign_id = cid;
     DELETE FROM approval_tokens WHERE campaign_id = cid;
-    UPDATE campaigns SET first_seen_campaign_id = NULL WHERE first_seen_campaign_id = cid;
     UPDATE businesses SET first_seen_campaign_id = NULL WHERE first_seen_campaign_id = cid;
     DELETE FROM campaigns WHERE id = cid;
   END LOOP;

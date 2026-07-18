@@ -59,6 +59,7 @@ const placesSearch = node({
     name: 'Places Search',
     position: [1120, 240],
     onError: 'continueRegularOutput',
+    retryOnFail: true, maxTries: 3, waitBetweenTries: 2500, // backoff on Places 429/5xx
     parameters: {
       method: 'POST',
       url: 'https://places.googleapis.com/v1/places:searchText',
@@ -84,6 +85,7 @@ const serpSearch = node({
     name: 'SerpApi Maps Search',
     position: [1120, 460],
     onError: 'continueRegularOutput',
+    retryOnFail: true, maxTries: 3, waitBetweenTries: 2500, // backoff on SerpApi rate limits
     parameters: {
       method: 'GET',
       url: 'https://serpapi.com/search.json',
