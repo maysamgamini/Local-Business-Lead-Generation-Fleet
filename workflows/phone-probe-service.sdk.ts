@@ -1,7 +1,10 @@
 // Leadgen — Phone Probe Service (warm-gated 'phone_probe' fleet service). Deployed: BP3pMFyvJ0n0bPLX.
 // Phone Presence V2, fleet-integrated. Claim 'phone_probe' -> Get phone -> [phone?] Twilio call +
-// Answering-Machine-Detection -> Wait 45s -> poll answered_by -> phone_unanswered (voice_ai,
-// when:true -> +15 via scoring-config) + phone_probe_answered_by evidence -> complete_analysis_work_item
+// AMD + Record (RecordingTrack=inbound, ~greeting) -> Wait 45s -> poll answered_by ->
+// **Classify Greeting** (deployed node: fetch the Twilio recording -> Gemini flash AUDIO
+// classification -> phone_assistant_type = ai_assistant | ivr_menu | human | voicemail | no_answer
+// | unclear) -> phone_unanswered (voice_ai, when:true -> +15) + phone_probe_answered_by +
+// phone_assistant_type evidence -> complete_analysis_work_item
 // (cause 'phone_evidence' -> reuses phone_evidence->assessment rule -> re-score). No phone -> complete
 // empty. Single execution (Wait+poll, no async callback fence). Shares the /leadgen-phone-twiml
 // endpoint deployed by the on-demand probe (8JLoJMdcFY8ylhzI). Twilio auth via the n8n 'Twilio account'
