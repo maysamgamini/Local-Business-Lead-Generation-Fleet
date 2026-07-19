@@ -44,6 +44,14 @@ const prep = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Bu
 
 const pitch = node({ type: 'n8n-nodes-base.httpRequest', version: 4.4, config: { name: 'Compose Pitch', position: [980, 300], onError: 'continueRegularOutput', retryOnFail: true, maxTries: 2, waitBetweenTries: 5000, parameters: { method: 'POST', url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=<<GEMINI_KEY>>', sendBody: true, specifyBody: 'json', jsonBody: expr('={{ $json.geminiBody }}'), options: { timeout: 60000 } } }, output: [{ candidates: [] }] });
 
+// DOMAIN + SOCIAL (added 2026-07-18): Build Pitch Prompt derives unmemorable_domain (same
+// heuristic as the Scorer: registrable label >=20 alpha OR hyphen/digit) and social{present,
+// absent,count} from ev.social_links/social_platform_count; the prompt adds a Website Redesign
+// rec (shorter/memorable domain + rebrand) when the domain is unmemorable, and a Social Media
+// Automation rec + absent-platform 'missing' entries when social is known and thin (social=null
+// -> never mention social). Build & Upload renders a deterministic "Social footprint" chip strip
+// (present=green, absent=struck-through) whenever social_platform_count evidence exists.
+//
 // COMPETITIVE GAP (added 2026-07-18): Build Pitch Prompt (temperature 0.2, strict grounding
 // system prompt — "use ONLY the evidence + verbatim review quotes; never invent complaints,
 // quotes, competitors, or numbers") now also emits competitive_gap:{reputation_note (Google
