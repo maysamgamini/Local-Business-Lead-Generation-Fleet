@@ -50,7 +50,10 @@ const pitch = node({ type: 'n8n-nodes-base.httpRequest', version: 4.4, config: {
 // rec (shorter/memorable domain + rebrand) when the domain is unmemorable, and a Social Media
 // Automation rec + absent-platform 'missing' entries when social is known and thin (social=null
 // -> never mention social). Build & Upload renders a deterministic "Social footprint" chip strip
-// (present=green, absent=struck-through) whenever social_platform_count evidence exists.
+// (present=green, absent=struck-through) whenever social_platform_count evidence exists; present
+// chips also show follower counts + days-since-last-post from the Social Activity worker's
+// social_followers/social_last_post_days evidence, with an active/inactive verdict driven by
+// social_inactive_90d. The pitch brief carries the same social.followers/last_post_days/inactive.
 //
 // COMPETITIVE GAP (added 2026-07-18): Build Pitch Prompt (temperature 0.2, strict grounding
 // system prompt — "use ONLY the evidence + verbatim review quotes; never invent complaints,
