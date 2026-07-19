@@ -19,6 +19,12 @@ BEGIN
   IF coalesce(p_request->>'request_id','') = '' THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='request_id required';
   END IF;
+  IF coalesce(p_request->>'business_type','') = '' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='business_type required';
+  END IF;
+  IF p_request->'geo' IS NULL OR jsonb_typeof(p_request->'geo') <> 'object' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo required';
+  END IF;
   v_geo := p_request->'geo';
   IF v_geo->>'type' NOT IN ('zip','city_radius') THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001',
