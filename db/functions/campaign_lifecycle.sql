@@ -207,7 +207,7 @@ BEGIN
         ELSE 'blocked'   -- phone, enrichment, assessment, social: unblocked by dependency/gate hooks
       END
     FROM service_config sc
-    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social')
+    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social','phone_probe')
     ON CONFLICT DO NOTHING;
 
     -- Leads with NO runnable analyzer (e.g. no-website + reviews/phone disabled)

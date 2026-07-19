@@ -60,6 +60,10 @@ BEGIN
     (s_scoring,'voice_ai','phone_complaint_share','linear','higher_better',0,1,25,25,NULL,'no_points','count_roots_only'),
     (s_scoring,'voice_ai','booking_widget_present','boolean_points',NULL,NULL,NULL,1,15,
        '{"when":false,"points":15}','no_points','count_roots_only'),
+    -- phone_unanswered (Phone Probe V2): a warm-lead probe call that hit voicemail/no-answer =
+    -- missed-call / AI-receptionist opportunity. Producer = the phone_probe worker.
+    (s_scoring,'voice_ai','phone_unanswered','boolean_points',NULL,NULL,NULL,1,15,
+       '{"when":true,"points":15}','no_points','count_roots_only'),
     (s_scoring,'voice_ai','hours_gap_vs_norm','linear','higher_better',0,1,10,10,NULL,'no_points','count_roots_only'),
     (s_scoring,'voice_ai','owner_response_rate','boolean_points',NULL,NULL,NULL,1,10,
        '{"when_lt":0.2,"points":10}','no_points','count_roots_only'),
@@ -191,7 +195,10 @@ INSERT INTO %1$I.service_config
   ('assets',     1, 1, NULL, 300, '{}', false),
   -- social: warm-gated social-activity eval (Apify IG/FB/TikTok + SerpApi discovery +
   -- Yelp reuse). Ships DISABLED until the Social Activity worker is live (then flip true).
-  ('social',     3, 3, NULL, 600, '{"apify_profile":0.02,"serpapi_search":0.01}', false)
+  ('social',     3, 3, NULL, 600, '{"apify_profile":0.02,"serpapi_search":0.01}', false),
+  -- phone_probe: warm-gated Twilio AMD probe-caller (Phone Presence V2). Ships DISABLED
+  -- (real outbound calls); flip enabled=true to auto-probe warm leads.
+  ('phone_probe',3, 3, NULL, 300, '{"twilio_call":0.02}', false)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
   max_concurrency = EXCLUDED.max_concurrency,
