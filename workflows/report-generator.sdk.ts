@@ -54,6 +54,10 @@ const pitch = node({ type: 'n8n-nodes-base.httpRequest', version: 4.4, config: {
 // chips also show follower counts + days-since-last-post from the Social Activity worker's
 // social_followers/social_last_post_days evidence, with an active/inactive verdict driven by
 // social_inactive_90d. The pitch brief carries the same social.followers/last_post_days/inactive.
+// WEB CAPABILITIES (added 2026-07-18): pitch brief also carries web{chat_widget, booking_widget,
+// chat_vendor, booking_vendor} from the Website Auditor's homepage detection — no online booking
+// -> AI Phone Receptionist + scheduling pitch; no chat widget -> Support Chatbot pitch; a detected
+// vendor is acknowledged, not replaced. (booking_widget_present also feeds voice_ai scoring.)
 //
 // COMPETITIVE GAP (added 2026-07-18): Build Pitch Prompt (temperature 0.2, strict grounding
 // system prompt — "use ONLY the evidence + verbatim review quotes; never invent complaints,
