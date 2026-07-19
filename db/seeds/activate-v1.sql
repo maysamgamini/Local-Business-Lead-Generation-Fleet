@@ -132,6 +132,7 @@ BEGIN
       ('website_evidence','phone'), ('website_evidence','assessment'),
       ('reviews_evidence','phone'), ('reviews_evidence','assessment'),
       ('phone_evidence','assessment'),
+      ('social_evidence','assessment'),
       ('contact_finding','assessment'), ('contact_verification','assessment'),
       ('suppression_change','enrichment'), ('suppression_change','assessment'),
       ('evidence_dispute','assessment')
@@ -187,7 +188,10 @@ INSERT INTO %1$I.service_config
   ('phone',      5, 5, NULL, 300, '{}', true),
   ('enrichment', 3, 3, NULL, 600, '{"apollo_lookup":0.40,"hunter_verify":0.10}', false),
   ('assessment', 5, 5, NULL, 300, '{"llm_est":0.03}', true),
-  ('assets',     1, 1, NULL, 300, '{}', false)
+  ('assets',     1, 1, NULL, 300, '{}', false),
+  -- social: warm-gated social-activity eval (Apify IG/FB/TikTok + SerpApi discovery +
+  -- Yelp reuse). Ships DISABLED until the Social Activity worker is live (then flip true).
+  ('social',     3, 3, NULL, 600, '{"apify_profile":0.02,"serpapi_search":0.01}', false)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
   max_concurrency = EXCLUDED.max_concurrency,

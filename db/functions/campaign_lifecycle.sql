@@ -198,10 +198,10 @@ BEGIN
         WHEN sc.service = 'website' THEN
           CASE WHEN coalesce(b->>'domain','') = '' THEN 'skipped_prerequisite' ELSE 'pending' END
         WHEN sc.service = 'reviews' THEN 'pending'
-        ELSE 'blocked'   -- phone, enrichment, assessment: unblocked by dependency hooks
+        ELSE 'blocked'   -- phone, enrichment, assessment, social: unblocked by dependency/gate hooks
       END
     FROM service_config sc
-    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment')
+    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social')
     ON CONFLICT DO NOTHING;
 
     -- Leads with NO runnable analyzer (e.g. no-website + reviews/phone disabled)

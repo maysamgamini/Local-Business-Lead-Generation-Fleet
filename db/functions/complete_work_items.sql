@@ -227,6 +227,17 @@ BEGIN
       UPDATE work_items SET state = 'skipped_gate'
       WHERE campaign_lead_id = lead.id AND service = 'enrichment' AND state IN ('blocked','waiting_approval');
     END IF;
+
+    -- Social-activity gate: a warm/hot lead is worth the paid social scrape, so open
+    -- the 'social' work item (blocked -> pending). Non-warm terminal analysis skips it.
+    -- No approval branch: social is public-data enrichment, not contact spending.
+    IF v_class IN ('warm','hot') THEN
+      UPDATE work_items SET state = 'pending', available_at = now()
+      WHERE campaign_lead_id = lead.id AND service = 'social' AND state = 'blocked';
+    ELSIF coalesce((p_payload->>'analysis_terminal')::boolean, false) THEN
+      UPDATE work_items SET state = 'skipped_gate'
+      WHERE campaign_lead_id = lead.id AND service = 'social' AND state = 'blocked';
+    END IF;
   END IF;
 
   v_state := _finish_work_item(w, 'succeeded', p_payload->'run');
