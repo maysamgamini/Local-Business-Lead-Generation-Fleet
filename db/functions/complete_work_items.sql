@@ -55,7 +55,7 @@ DECLARE
   item jsonb; ins record; v_new_evidence int := 0; v_rev bigint; v_state text;
 BEGIN
   w := _fenced_lock_work_item(p_work_item_id, p_claim_token);
-  IF w.service NOT IN ('website','reviews','phone') THEN
+  IF w.service NOT IN ('website','reviews','phone','social') THEN
     RAISE EXCEPTION 'invalid_transition' USING ERRCODE = 'P0001',
       DETAIL = 'complete_analysis called for service ' || w.service;
   END IF;
