@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-16
 
-**Status**: Draft
+**Status**: Draft — US1 spine live; see `tasks.md` Phase 8 (2026-07-18/19) for shipped enhancements (warm@45, unmemorable-domain signal, homepage social/pixel/widget detection, the warm-gated `social` Social-Activity service, and Report Generator competitive-gap/peer/social/web-capability pitch). Target market clarified to small local SMBs; Similarweb evaluated and dropped (research R-16..R-18).
 
 **Input**: User description: "Agentic Local Business Research and Lead Generation system for a digital-marketing / AI-voice-assistant agency. Given a business type and geography, discover local businesses, analyze each against the agency's four product lines (web design + SEO, AI voice assistant, ad campaigns incl. AI video, consultation/custom AI), identify and verify decision-makers, score and classify leads, and deliver evidenced, qualified opportunities. Full technical design in docs/superpowers/specs/2026-07-16-leadgen-fleet-design.md (v4)."
 

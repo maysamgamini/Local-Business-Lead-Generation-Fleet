@@ -1,6 +1,6 @@
 # Contract: Fleet Service Interfaces
 
-**10 active service roles (Asset Collector deferred to v2), 16 deployed n8n workflow definitions** (3 intakes + 9 operational including dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + global error handler). Dashboard Sync is delivery-nudged by the Event Relay but deploys as its own workflow. Every service is an independent n8n workflow with two entry points — webhook (poke / external invocation) and Execute Workflow (testing / composition) — plus, for queue workers, an interval trigger. Standard worker loop: `claim_work_items()` → do work → `complete_* / fail / defer`. Pokes only trigger an immediate poll; caps hold because claiming is fenced. **Discovery is a queue worker too** — campaign-scoped work item, same lease/fence, so duplicate pokes can never cause duplicate provider spend.
+**Active service roles (Asset Collector deferred to v2; `social` added 2026-07-18), deployed n8n workflow definitions** — plus the **Report Generator** (`report-generator.sdk.ts`, `LD2ujo15iFNfrhEM`; per-prospect audit/pitch, auto-fired by the Sweeper on finalization for warm/hot leads — see tasks T057b) and **Social Activity** (`social-activity.sdk.ts`, `vwVPshHYWl4t8fzH`). (3 intakes + 9 operational including dashboard-sync + approval form + sales-action form + shared fetch-page sub-workflow + global error handler). Dashboard Sync is delivery-nudged by the Event Relay but deploys as its own workflow. Every service is an independent n8n workflow with two entry points — webhook (poke / external invocation) and Execute Workflow (testing / composition) — plus, for queue workers, an interval trigger. Standard worker loop: `claim_work_items()` → do work → `complete_* / fail / defer`. Pokes only trigger an immediate poll; caps hold because claiming is fenced. **Discovery is a queue worker too** — campaign-scoped work item, same lease/fence, so duplicate pokes can never cause duplicate provider spend.
 
 Common rules: all LLM outputs schema-validated post-generation (failure = work-item failure); long tiers call `renew_lease()` (and `renew_provider_permit()` for long provider calls); every paid call follows gate → `authorize_paid_operation()` (atomic max-billable budget + permit) → call → settle (`actual ≤ maximum`) or release; all provider calls use retry-with-backoff; deferrals are not failures.
 
@@ -25,7 +25,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 
 | | Contract |
 |---|---|
-| Tier 1 (deterministic) | Reachability, SSL/redirects, PSI Lighthouse lab scores, viewport, tech fingerprints (CMS, chat/booking widgets, pixels), **and marketing presence: `ad_presence` (Meta Ad Library + Google Ads Transparency lookups) + `social_inactive_90d` (latest-post recency)** → typed evidence. This service is the contracted producer of the ads-fit features (see scoring-defaults ownership table) |
+| Tier 1 (deterministic) | Reachability, SSL/redirects, PSI Lighthouse lab scores, viewport, freshness (`staleness_years`), Gemini-Flash vision (`design_age_estimate`, `visual_appeal`, `design_findings`), and — **all parsed free from the already-fetched homepage (2026-07-18)** — **social presence** (`social_links`, `social_platform_count`), **marketing/tracking pixels** (`marketing_pixels`, `pixel_count`: Meta Pixel/GA4/GTM/Google Ads/TikTok Pixel/LinkedIn Insight), and **chat + booking widgets** (`chat_widget_present`, `booking_widget_present`, `web_features{chat_vendor,booking_vendor}`) → typed evidence. `booking_widget_present` is the producer for that voice_ai rule; `ad_presence` (Meta Ad Library / Google Ads Transparency) remains a Tier-2 future enhancement |
 | Tier 2 (caged agent, Claude, cap 6 `fetch_page` calls) | `{design_age_estimate, seo_gaps[], conversion_blockers[], missing_capabilities[], rebuild_vs_refresh, confidence}` |
 | Cage | No credentials in context; http/https only; private-IP block post-DNS; ≤3 redirects; size cap; HTML→text sanitization |
 
@@ -33,7 +33,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 
 | | Contract |
 |---|---|
-| Tier 1 | Apify newest-200 Google reviews (+ Yelp per vertical policy), processed oldest→newest → typed stats: volume, average, trajectory, `owner_response_rate`, recency distribution |
+| Tier 1 | Apify newest-150 Google reviews (`compass~google-maps-reviews-scraper`) + Yelp (`tri_angle~yelp-review-scraper` gated on Fusion match ≥3 reviews) → typed stats: `rating`, trajectory, `owner_response_rate`, `owner_responds_to_reviews`, `yelp_rating`, `yelp_review_count`, `yelp_url`, `reputation_gap`. **NOTE (2026-07-18): no longer emits `review_volume`** — Discovery's Places `user_ratings_total` is authoritative; the scrape returned 0/null on empty/capped runs and clobbered it via latest-wins |
 | Tier 2 (cheap model) | Complaint themes mapped to 4 product lines + short verbatim quotes with dates |
 | Verification gate | Every quote string-matched against fetched corpus → `confirmed`/`rejected` verification events (idempotent). Corpora are ephemeral: derived stats + short excerpts persist, full text does not |
 
@@ -45,6 +45,16 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 | In | Sibling evidence (read-only) + Places data |
 | Out | `{ai_receptionist_likelihood, phone_pain_score, evidence_refs[]}` as derived evidence with `derived_from` links (lineage prevents double-count) |
 | V2 swap | Probe-caller: same contract + `call_transcript_ref`; compliance review before build |
+
+## Social Activity (queue: `social`, warm-gated) — added 2026-07-18
+
+| | Contract |
+|---|---|
+| Gate | Created `blocked` at discovery commit (or `skipped_prerequisite` when `service_config.social.enabled=false`). The **Scorer opens it** (`blocked → pending`) in `complete_scorer_work_item` when the lead is **warm/hot**; non-warm terminal analysis → `skipped_gate`. No approval branch — public data, not contact spending |
+| In | Claims `social`; reads the `social_links` evidence produced by the Website Auditor |
+| Work | Apify per-profile scrape of detected profiles — `apify~instagram-scraper` (followers + latest-post timestamp), `apify~facebook-pages-scraper` (followers/likes), `clockworks~tiktok-scraper` (fans + latest video). Gated to warm leads to control Apify cost |
+| Out | `complete_analysis_work_item(..., cause_type='social_evidence')` → `social_followers` (object), `social_last_post_days` (object), `social_inactive_90d` (boolean, `ads_video`; TRUE when most-recent IG/TikTok post >90d or no social presence). `social_evidence → assessment` impact rule re-scores the lead |
+| v2 | SerpApi Google-search profile discovery (find profiles the homepage doesn't link); Yelp/Nextdoor supplement. Similarweb was evaluated and **dropped** (needs ~5k monthly visits — no data for SMBs; see research) |
 
 ## Contact Enricher (queue: `enrichment`, gate-blocked)
 
@@ -59,7 +69,7 @@ Common rules: all LLM outputs schema-validated post-generation (failure = work-i
 | | Contract |
 |---|---|
 | In | Assessment work items created/reset by evidence events via impact rules |
-| Work | Recompute from full ledger state under pinned scoring config set; only latest-event-`confirmed` evidence; lineage policy governs derived evidence |
+| Work | Recompute from full ledger state under pinned scoring config set; only latest-event-`confirmed` evidence; lineage policy governs derived evidence. **Also (2026-07-18): derives `domain_hard_to_recall` (+25 web_seo) from the business domain, and opens the warm-gated `social` work item when the lead is warm/hot.** Warm threshold = opportunity ≥45 (thresholds + opportunity formula are hardcoded in the Code node — see scoring-defaults implementation note) |
 | Out | `complete_scorer_work_item()`: assessment + score_components + score_log + classification + pointer update (only when `processing_version = lead_revision`; else `is_current=false`, item → pending) + outbox |
 | Critic & hot timing | `hot_candidate = true` when the candidate condition holds (opportunity ≥75 AND evidence_confidence ≥60 — contactability pending; see scoring-defaults thresholds); classification stays `warm`. When contactability also passes the Hot gate (≥60, US2 enrichment), `critic_reviews` opens (`critic_state = pending`); cross-family critic marks evidence `disputed`; deterministic verifiers re-run; recompute. Only on critic resolution (or `critic_deadline_at`, resolving as `contested`) does classification become `hot` — and only then does `lead.hot` and the first-hot Slack milestone fire. An unresolved candidate never enters a digest as hot |
 

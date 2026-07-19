@@ -93,3 +93,22 @@
 - Confirm PSI API field-data status vs. CrUX API split at build time.
 - Set contact-PII retention windows per target-geo requirements (assumption documented in spec).
 - n8n LTS version pin + external task-runner configuration flags at deploy time.
+
+## R-16 Social & web-capability signals from the homepage (2026-07-18)
+
+- **Decision**: The Website Auditor parses the already-fetched homepage (no extra API) for social profile links (`social_links`, `social_platform_count`), marketing/tracking pixels (`marketing_pixels`, `pixel_count`: Meta Pixel/GA4/GTM/Google Ads/TikTok Pixel/LinkedIn Insight), and chat + booking widget vendors (`chat_widget_present`, `booking_widget_present`, `web_features`). Detection is indexOf/char-code, no headless browser.
+- **Rationale**: Free, reliable at SMB scale, and maps directly to products — `booking_widget_present=false` → AI Phone Receptionist/scheduling (and fills the pre-existing voice_ai scoring rule that had no producer); `chat_widget_present=false` → Support Chatbot; absent/thin social → Social Media Automation.
+- **Alternatives**: paid tech-stack APIs (BuiltWith/Wappalyzer — cost, overkill); headless-browser rendering (catches JS-injected widgets but heavy — accepted the static-HTML limit: a loader script in the static HTML is still caught, e.g. ServiceTitan/Calendly).
+
+## R-17 Social activity & the dropped traffic estimate (2026-07-18)
+
+- **Decision**: A new warm-gated `social` fleet service scrapes detected social profiles via Apify (`apify~instagram-scraper`, `apify~facebook-pages-scraper`, `clockworks~tiktok-scraper`) for follower counts + last-post recency → `social_inactive_90d` (feeds ads_video). Gated to warm/hot leads (opened by the Scorer) to control Apify cost, in the fenced queue like every paid service. **Similarweb was evaluated and dropped** — its API returns no data below ~5,000 monthly visits, so it is empty for the SMB target market; SerpApi + Apify cover the obtainable signals. SerpApi Google-search profile discovery (find profiles the homepage omits) is a documented v2 enhancement.
+- **Rationale**: Real website referral-traffic is unobtainable for a competitor's site without their analytics; social *activity/attention* is the defensible proxy for SMBs, and "3,200 followers but no post in 5 months" is a sharper pitch than a fuzzy traffic estimate. Warm-gating avoids scraping cold/disqualified leads.
+- **Alternatives**: Similarweb/Semrush/Ahrefs traffic APIs (paid + no SMB data); scraping every lead's socials (unnecessary Apify spend on non-prospects).
+- **Note**: Apify enforces a per-account monthly USD cap (a free-tier $5/mo cap returns `403 platform-feature-disabled` and blocks all actors); the service ships behind `service_config.social.enabled`.
+
+## R-18 Scoring tuning & the review_volume authority fix (2026-07-18)
+
+- **Decision**: Warm threshold lowered 60→45 (established SMB verticals score 45–55). New `domain_hard_to_recall` derived signal (+25 web_seo) for long/unmemorable domains. The Review Miner no longer emits `review_volume` — Discovery's Places `user_ratings_total` is the single authoritative count.
+- **Rationale**: The miner's Apify google-reviews scrape returned 0/null on empty/capped runs and, via the evidence model's latest-wins rule, clobbered Discovery's real count — silently deflating ads_video on every campaign after reviews ran. One producer per feature is the fix. Corrupt rows are repaired append-only (`_insert_evidence`), never deleted — the ledger stays immutable.
+- **Alternatives**: keep both producers with a max()/source-priority merge (more moving parts than "Discovery owns the count"); delete corrupt evidence (violates the append-only ledger).

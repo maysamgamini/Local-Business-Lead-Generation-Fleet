@@ -146,6 +146,22 @@
 
 ---
 
+## Phase 8: Session enhancements (2026-07-18/19) — deployed & verified live
+
+Signal-coverage + scoring + report work delivered after the US1 spine, driven by the SMB
+target market and the "convincing per-prospect deliverable" goal. All committed; deployed
+instance IDs in workflows/README.md.
+
+- [X] T066 [Scoring] Warm threshold lowered 60 → 45 (opportunity ≥45 warm, 40–45 cold, <40 dq). Thresholds + opportunity formula are hardcoded in the Scorer Code node (`r0K3xkLN2XtUceTF`), not read from `scoring_config`; `activate-v1.sql` `warm_opportunity` and `us1_assertions.sql` A4 updated to 45 to document intent.
+- [X] T067 [Scoring] Unmemorable-domain signal — Scorer loads `businesses.website_domain` and derives `domain_hard_to_recall` (+25 fit_web_seo; registrable label ≥20 alpha OR has hyphen/digit), in-Scorer like `fits_in_midband_count`.
+- [X] T068 [Data quality] Review Miner `review_volume` clobber fix — miner no longer emits `review_volume` (Discovery's Places `user_ratings_total` is authoritative; the Apify scrape returned 0/null on empty/capped runs and overwrote it via latest-wins, silently deflating ads_video on every campaign after reviews ran). Existing corrupt rows repaired append-only via `_insert_evidence`.
+- [X] T069 [Intake] Form submissions never require approval — `requires_approval` hardcoded `false`, approval dropdown removed (`SzTS1b6tJHnQmvY3`). Approval-link workflow (T044) still unbuilt; manual approval via `issue_approval_token` + `record_approval`.
+- [X] T070 [Website Auditor] Free homepage signal detection — social presence (`social_links`, `social_platform_count`), marketing/tracking pixels (`marketing_pixels`, `pixel_count`), and chat + booking widgets (`chat_widget_present`, `booking_widget_present`, `web_features`). `booking_widget_present` fills the pre-existing voice_ai rule (`when:false → +15`).
+- [X] T071 [Fleet] New warm-gated `social` service — `db/migrations/130_social_service.sql` (service CHECK + `social`, both namespaces), `commit_discovery_results` creates the social work item, `complete_scorer_work_item` opens the gate on warm/hot, `complete_analysis_work_item` allowlist +`social`, `revision_impact_rule social_evidence→assessment`, `service_config` `social` row. Worker `workflows/social-activity.sdk.ts` (`vwVPshHYWl4t8fzH`): Apify IG/FB/TikTok → `social_followers` / `social_last_post_days` / `social_inactive_90d` (`ads_video`, `when:true → +25`). Gated to warm leads. Verified live (Breeze Dental: IG 5,268 followers / 12d). Ships behind `service_config.social.enabled` (flip true once Apify credit is up).
+- [X] T072 [Report] Report Generator enhancements (`LD2ujo15iFNfrhEM`) — auto-fires on finalization (Sweeper POSTs `{campaign_id}` for warm/hot); grounded Competitive Gap (Google-vs-Yelp + verbatim quotes + product-mapped bad_today→good_with_us); grounded peer-area comparison (`area_avg_rating`, `peer_count`, `peers_responding`, `peers_with_response_data`); unmemorable-domain pitch; Social footprint section (present/absent chips + follower counts + days-since-last-post + active/inactive verdict); web-capabilities pitch (no chat → Support Chatbot; no booking → AI Phone Receptionist + scheduling). Delivery bucket-only secret link, brand "HiLeadDiscovery Studio".
+- [X] T073 [Decision] Similarweb dropped (referral-traffic estimates unobtainable for SMBs — needs ~5k monthly visits). SerpApi + Apify chosen instead; SMB target market drives the activity/pixels/widgets signal design over traffic numbers. SerpApi profile-discovery = documented v2 enhancement.
+- [X] T074 [Cleanup] Added `=` expression prefix to all Postgres completion/commit nodes (Complete Reviews/Website/Down/Phone/Social, Defer Website, Commit Discovery) — cleared MISSING_EXPRESSION_PREFIX validator warnings; behavior verified unchanged.
+
 ## Dependencies
 
 ```

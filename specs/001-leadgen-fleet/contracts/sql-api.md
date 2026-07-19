@@ -31,7 +31,7 @@ Zero rows affected ⇒ the caller lost ownership and MUST discard its result (th
 |---|---|
 | `claim_work_items(service, worker_id) → setof (work_item_id, claim_token, service_run_id, processing_version, scope refs)` | Locks service_config row; `slots = max_concurrency − count(running, unexpired)`; claims `min(claim_batch_size, slots)` FOR UPDATE SKIP LOCKED over `pending` items with `available_at <= now()`; creates `service_runs` row; `processing_version := requested_version`; increments `execution_attempt_count` |
 | `renew_lease(work_item_id, claim_token)` | Fenced; post-expiry renewal fails — worker discards result |
-| `complete_discovery_work_item` (via `commit_discovery_results`), `complete_analysis_work_item`, `complete_scorer_work_item`, `complete_enrichment_work_item`, `complete_collector_work_item` | Fenced; service-specific payload validation; ONE transaction: evidence + links (cycle check) + verification events + assessments/contacts + service_run finalization + `evaluate_chain_rules()` + outbox events (with `event_class`) + work-item update. Version rule: `requested > processing ⇒ pending` else `done`. Scorer variant enforces is_current publication + hot-candidate flow (see service-contracts) |
+| `complete_discovery_work_item` (via `commit_discovery_results`), `complete_analysis_work_item`, `complete_scorer_work_item`, `complete_enrichment_work_item`, `complete_collector_work_item` | Fenced; service-specific payload validation; ONE transaction: evidence + links (cycle check) + verification events + assessments/contacts + service_run finalization + `evaluate_chain_rules()` + outbox events (with `event_class`) + work-item update. Version rule: `requested > processing ⇒ pending` else `done`. Scorer variant enforces is_current publication + hot-candidate flow + opens the warm-gated `social` work item (see service-contracts). **`complete_analysis_work_item` accepts services `website \| reviews \| phone \| social`** (`social` added 2026-07-18) |
 | `fail_work_item(work_item_id, claim_token, error_code, detail)` | Fenced; run finalized failed; `state = failed_retryable` with exponential `available_at`; increments `retryable_failure_count` |
 | `defer_work_item(work_item_id, claim_token, retry_at, cause)` | Cooldown/capacity/waiting — increments `provider_deferral_count` only; never the failure counter |
 | `requeue_retryable_work() → count` | **Explicit Sweeper transition**: `failed_retryable` with `available_at <= now()` → `pending`; `retryable_failure_count >= threshold` → `dead` + alert event. Without this call, failed items are unclaimable by design (claim only takes `pending`) |
@@ -71,6 +71,8 @@ CREATE UNIQUE INDEX one_campaign_work_item_per_service
   ON work_items (campaign_id, service) WHERE scope_type = 'campaign';
 CREATE UNIQUE INDEX one_lead_work_item_per_service
   ON work_items (campaign_lead_id, service) WHERE scope_type = 'lead';
+-- work_items.service enum (migration 030 + 130): discovery|website|reviews|phone|
+-- enrichment|assessment|assets|social  ('social' added 2026-07-18, db/migrations/130_social_service.sql)
 ALTER TABLE work_items ADD CHECK (
   (scope_type = 'campaign' AND campaign_id IS NOT NULL AND campaign_lead_id IS NULL) OR
   (scope_type = 'lead'     AND campaign_id IS NOT NULL AND campaign_lead_id IS NOT NULL));

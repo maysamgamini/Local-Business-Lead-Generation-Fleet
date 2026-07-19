@@ -42,7 +42,7 @@ All three intake channels normalize to this object before calling `create_campai
 
 ## Per-channel behavior
 
-- **Form intake**: n8n Form; generates `request_id`; `requires_approval` defaults **true**.
+- **Form intake**: n8n Form (deployed `SzTS1b6tJHnQmvY3`); generates `request_id`. **`requires_approval` is hardcoded `false` (2026-07-18)** — the approval dropdown was removed; self-serve form runs flow straight through to finalization + reports with no human gate, because the approval-link workflow (T044) is not deployed. When a human gate IS needed, approve manually via `leadgen.issue_approval_token()` + `leadgen.record_approval()`. (Original design defaulted this **true**; revisit if T044 ships.)
 - **Scheduled intake**: reads standing ICP rows from the input sheet (the only sheet machines ever read); per-row cursor state in the ledger; `requires_approval` **false** by design; `request_id` derived from (row id, scheduled slot) for idempotency.
 - **Webhook intake**: authenticated (header credential); JSON validated against this contract; caller identity logged and bounds budget.
 

@@ -15,11 +15,12 @@ An agentic lead-research system for a digital-marketing / AI-voice-assistant age
 | Data model | `specs/001-leadgen-fleet/data-model.md` |
 | Contracts (request, SQL API, services, scoring defaults) | `specs/001-leadgen-fleet/contracts/` |
 | Validation guide | `specs/001-leadgen-fleet/quickstart.md` |
-| Task breakdown (63 tasks, 7 phases) | `specs/001-leadgen-fleet/tasks.md` |
+| Task breakdown (7 phases + Phase 8 session enhancements) | `specs/001-leadgen-fleet/tasks.md` |
+| Deployed workflow inventory + credentials | `workflows/README.md` |
 
 ## Status
 
-Spec kit package complete and cross-audited; implementation not yet started (Phase 1 begins with the repository skeleton and database core).
+**US1 spine is live and proven end-to-end** on real campaigns (Intake → Discovery → Website Auditor + Gemini vision → Review Miner [Google + Yelp] → Phone Presence → Scorer → Sweeper finalization → Report Generator). Session enhancements (2026-07-18/19, tasks.md Phase 8): warm@45 + unmemorable-domain scoring; `review_volume` authority fix; free homepage detection (social links, tracking/ad pixels, chat + booking widgets); the warm-gated **`social` Social-Activity service** (Apify IG/FB/TikTok → followers/recency/`social_inactive_90d`); Report Generator competitive-gap + peer comparison + social + web-capability pitch, auto-fired on finalization. US2 (verified contacts/Hot), US3 (scheduled/webhook intake), US4 (dashboard/digest) still pending. Target market: small local SMBs.
 
 ## Stack
 
