@@ -12,6 +12,18 @@
 // (record_lead_report: DB copy + URL) -> responseMode lastNode returns {result:{url}}.
 //
 // DELIVERY = "secret link": public-read object, unguessable key, bucket listing disabled.
+//
+// V3 report additions (2026-07-19):
+//  - Load Report Data evidence bundle now dedups LATEST-per-feature
+//    (SELECT jsonb_object_agg(feature_key,val) FROM (SELECT DISTINCT ON (feature_key) feature_key,
+//     value_jsonb AS val ... ORDER BY feature_key, observed_at DESC)), so an appended corrective
+//    observation (append-only ledger) wins over the stale row — previously jsonb_object_agg over
+//    all rows resolved duplicate feature_keys arbitrarily. Peer subqueries dedup the same way.
+//  - Build & Upload renders a deterministic "How your phone is answered" block from
+//    phone_assistant_type (ai_assistant | ivr_menu | human | voicemail | no_answer | unclear),
+//    so the phone-probe result is always visible, independent of the LLM pitch.
+//  - Clickable: social "where you show up" chips link to social_links[platform]; website, tel:,
+//    and mailto: are anchors; contactbar at top.
 // DOUBLE COPY: DB (lead_reports.html) + bucket object; reports also regenerate from evidence.
 // SECRETS live in the request/Code (n8n DB), redacted here: <<GEMINI_KEY>> in Compose Pitch
 // URL; <<AWS_KEY>>/<<AWS_SECRET>> in Build & Upload. Bucket n8n-leadgen-reports (us-east-1),
