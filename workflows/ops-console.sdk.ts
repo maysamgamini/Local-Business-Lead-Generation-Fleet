@@ -359,6 +359,11 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(s.booking_widget_present===true){ out.push('<span class="chip leaf" title="Booking widget on site">booking</span>'); }
     if(unmemorable(l.domain)){ out.push('<span class="chip gold" title="Long / hard-to-recall domain">long domain</span>'); }
     if(l.rediscovered===true){ out.push('<span class="chip mut" title="Evidence reused from a prior campaign">&#8635; cached</span>'); }
+    var mp=s.marketing_pixels||{}; var adDefs=[["meta_pixel","Meta"],["google_ads","Google"],["yelp_pixel","Yelp"],["nextdoor_pixel","Nextdoor"],["tiktok_pixel","TikTok"],["linkedin_insight","LinkedIn"],["twitter_ads","X"]]; var adOn=[]; for(var ai=0;ai<adDefs.length;ai++){ if(mp[adDefs[ai][0]]===true) adOn.push(adDefs[ai][1]); }
+    var asx=s.ad_status||null; var adConf=[]; if(asx&&asx.summary){ if(asx.summary.meta==="CONFIRMED")adConf.push("Meta"); if(asx.summary.google==="CONFIRMED")adConf.push("Google"); if(asx.summary.yelp==="CONFIRMED")adConf.push("Yelp"); if(asx.summary.nextdoor==="CONFIRMED")adConf.push("Nextdoor"); }
+    if(adConf.length){ out.push('<span class="chip ember" title="Confirmed active ads (live verification)">ads &#10003; '+esc(adConf.join(", "))+'</span>'); }
+    else if(adOn.length){ out.push('<span class="chip gold" title="Ad pixels detected — likely running ads">ads: '+esc(adOn.join(", "))+'</span>'); }
+    else if(s.marketing_pixels||asx){ out.push('<span class="chip leaf" title="No active ads / no ad pixels — consult opportunity">no ads</span>'); }
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
     out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh re-analysis: re-scrape website/reviews/social/phone and re-score">&#8635; Re-analyze</button>');
     return '<div class="chips">'+out.join("")+'</div>';
