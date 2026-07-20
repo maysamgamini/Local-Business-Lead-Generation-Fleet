@@ -22,6 +22,7 @@ round-trips if ever needed.
 | Leadgen — API Intake | intake-webhook.sdk.ts | stTulzWEWMCS9qPS |
 | Leadgen — Phone Probe (fleet) | phone-probe-service.sdk.ts | BP3pMFyvJ0n0bPLX |
 | Leadgen — Ops Console | ops-console.sdk.ts | k3EJWaGRnGg8tl3p |
+| Leadgen — Scheduler | scheduler.sdk.ts | zSW7lriZbXptYpz1 |
 
 **Free homepage-signal detection (2026-07-18)** — the Website Auditor now parses the
 already-fetched homepage (no extra API) for three signal classes, all written as typed
@@ -53,6 +54,17 @@ the archive, set live via `update_workflow`). "+ New campaign" reuses the API In
 Requires `db/migrations/150_lead_reports_grant.sql` (grants SELECT on `lead_reports`, which
 post-dated `100_privileges.sql`). Visual: Fraunces/IBM Plex, heat-as-semantic (hot/warm/cold/dq)
 separate from the beacon-azure accent; theme-aware.
+
+**Ops Console actions (2026-07-20)** — three operator actions layered on the console (all through
+`SECURITY DEFINER` fns, `x-leadgen-key`-gated): **Run now** (per-campaign, clones config → intake
+API → fresh campaign); **Re-analyze** (per-lead `POST /leadgen-console-action` {action:reanalyze} →
+`requeue_lead_analysis` reopens website/reviews/phone/social + assessment, bypassing the 30-day
+cache, excluding phone_probe); **Target mode** (New-campaign "Analyze one business" → `create_campaign`
+`target` + Discovery Places text search). **Scheduler** (`scheduler.sdk.ts`, hourly + poke) calls
+`fire_due_schedules()` → launches due `campaign_schedules` rows via `create_campaign(schedule)`;
+console "Schedule…" (`schedule_campaign`) + "Schedules" drawer (`cancel_campaign_schedule`). Cadences
+once/weekly/monthly; prod-only. Migrations 150/160/170; functions reanalyze.sql/schedules.sql +
+create_campaign target mode.
 
 **phone_probe enabled (prod, 2026-07-20)** — `service_config.phone_probe.enabled` flipped `true`
 in the `leadgen` namespace (runtime UPDATE; the seed still ships it disabled). The Scorer now opens

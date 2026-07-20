@@ -202,6 +202,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   <div class="brand"><b>HiLeadDiscovery</b><span>Ops Console</span></div>
   <div class="grow"></div>
   <button class="tbtn ghost" id="fleetBtn" title="Fleet health">Fleet</button>
+  <button class="tbtn ghost" id="schedBtn" title="Scheduled campaigns">Schedules</button>
   <button class="tbtn ghost" id="themeBtn" title="Toggle theme">Theme</button>
   <button class="tbtn ghost" id="outBtn" title="Forget access key">Sign out</button>
   <button class="tbtn primary" id="newBtn">+ New campaign</button>
@@ -215,7 +216,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     <div class="clist" id="clist"><div class="skel">Loading…</div></div>
   </aside>
   <section class="board">
-    <div class="bhead"><div class="ttl" id="boardTitle">Leads</div><div class="grow"></div><div id="boardMeta" class="cg" style="color:var(--muted);font-size:12px"></div><button class="tbtn" id="runNowBtn" style="display:none" title="Launch a fresh campaign with this configuration">Run now</button></div>
+    <div class="bhead"><div class="ttl" id="boardTitle">Leads</div><div class="grow"></div><div id="boardMeta" class="cg" style="color:var(--muted);font-size:12px"></div><button class="tbtn" id="schedNowBtn" style="display:none" title="Schedule this campaign to run on a cadence">Schedule…</button><button class="tbtn" id="runNowBtn" style="display:none" title="Launch a fresh campaign with this configuration">Run now</button></div>
     <div class="rows" id="rows"><div class="skel">Select a campaign.</div></div>
   </section>
 </main>
@@ -313,6 +314,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var c=null; for(var k=0;k<state.campaigns.length;k++){ if(state.campaigns[k].id===id) c=state.campaigns[k]; }
     state.selected=c;
     $("runNowBtn").style.display=c?"inline-flex":"none";
+    $("schedNowBtn").style.display=c?"inline-flex":"none";
     $("boardTitle").textContent=c?(c.business_type||"Leads"):"Leads";
     $("boardMeta").textContent=c?(geoText(c.geo_original,c.geo_type)+" · "+(c.status||"")):"";
     $("rows").innerHTML='<div class="skel">Loading leads…</div>';
@@ -498,6 +500,51 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
       .catch(function(){ if(btn){ btn.disabled=false; btn.textContent="Re-analyze"; } window.alert("Network error — try again."); });
   }
 
+  // ----- schedule a campaign on a cadence -----
+  function scheduleModal(){
+    var c=state.selected; if(!c) return;
+    var wrap=document.createElement("div"); wrap.className="overlay";
+    wrap.innerHTML='<div class="sheet"><div style="display:flex;align-items:center"><h3 style="margin:0">Schedule campaign</h3><button class="close" title="Close">&times;</button></div>'+
+      '<p class="hint">Re-runs this '+esc(c.business_type||"")+' search on a cadence via the scheduler. Scheduled runs spend API budget.</p>'+
+      '<div class="grid2"><div class="field"><label>Cadence</label><select id="s_cad"><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="once">Once</option></select></div>'+
+      '<div class="field"><label>First run (optional)</label><input id="s_when" type="datetime-local"></div></div>'+
+      '<p class="hint" style="margin:-4px 0 12px">Blank starts weekly/monthly from now. For Once, pick a date and time.</p>'+
+      '<div id="s_msg"></div>'+
+      '<div class="rowbtns"><button class="tbtn ghost" id="s_cancel">Cancel</button><button class="tbtn primary" id="s_go">Create schedule</button></div></div>';
+    document.body.appendChild(wrap);
+    var cl=function(){ wrap.remove(); };
+    wrap.querySelector(".close").onclick=cl; $("s_cancel").onclick=cl; wrap.onclick=function(e){ if(e.target===wrap) cl(); };
+    $("s_go").onclick=function(){
+      var cad=$("s_cad").value; var when=$("s_when").value; var msg=$("s_msg");
+      if(cad==="once" && !when){ msg.innerHTML='<div class="msg err">Pick a date and time for a one-off run.</div>'; return; }
+      var body={ action:"schedule", campaign_id:c.id, cadence:cad };
+      if(when){ try{ body.next_run_at=new Date(when).toISOString(); }catch(e){} }
+      this.disabled=true; this.textContent="Creating…"; var self=this;
+      fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ if(res&&res.ok){ msg.innerHTML='<div class="msg ok">Scheduled ('+esc(res.cadence||cad)+'). Next run '+fmtDate(res.next_run_at)+'.</div>'; setTimeout(cl,1400); } else { self.disabled=false; self.textContent="Create schedule"; msg.innerHTML='<div class="msg err">'+esc((res&&res.error)||"Could not schedule.")+'</div>'; } })
+        .catch(function(){ self.disabled=false; self.textContent="Create schedule"; msg.innerHTML='<div class="msg err">Network error — try again.</div>'; });
+    };
+  }
+  function schedulesDrawer(){
+    api("leadgen-console-data").then(function(d){
+      var s=d.schedules||[]; var body="";
+      if(!s.length){ body='<div class="empty"><b>No schedules</b>Select a campaign, then click Schedule…</div>'; }
+      else { for(var i=0;i<s.length;i++){ var x=s[i];
+        body+='<div class="lead" style="grid-template-columns:1fr auto;gap:12px;box-shadow:none">'+
+          '<div class="who"><div class="nm">'+esc(x.business_type||x.label||"—")+' <span class="htag '+(x.enabled?"warm":"dq")+'">'+esc(x.cadence)+'</span></div>'+
+          '<div class="sub">next '+fmtDate(x.next_run_at)+' · '+(Number(x.run_count)||0)+' runs'+(x.enabled?"":" · paused")+'</div></div>'+
+          (x.enabled?('<button class="tbtn ghost sched-pause" data-id="'+esc(x.id)+'">Pause</button>'):"")+
+          '</div>'; } }
+      var wrap=document.createElement("div"); wrap.className="overlay";
+      wrap.innerHTML='<div class="sheet"><div style="display:flex;align-items:center"><h3 style="margin:0">Schedules</h3><button class="close" title="Close">&times;</button></div><p class="hint">Recurring &amp; one-off launches. The scheduler fires due schedules hourly (prod only).</p><div class="rows">'+body+'</div></div>';
+      document.body.appendChild(wrap);
+      var cl=function(){ wrap.remove(); }; wrap.querySelector(".close").onclick=cl; wrap.onclick=function(e){ if(e.target===wrap) cl(); };
+      var pbs=wrap.querySelectorAll(".sched-pause");
+      for(var q=0;q<pbs.length;q++){ pbs[q].onclick=function(){ var self=this; self.disabled=true; self.textContent="Pausing…"; fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"unschedule", schedule_id:this.getAttribute("data-id") }) }).then(function(r){ return r.json(); }).then(function(){ cl(); schedulesDrawer(); }).catch(function(){ self.disabled=false; self.textContent="Pause"; }); }; }
+    }).catch(fail);
+  }
+
   function fail(e){
     if(e&&e.code===401){ state.key=null; lsDel(KEY_STORE); gate("That key was rejected. Check it and try again."); return; }
     $("rows").innerHTML='<div class="empty"><b>Could not load data</b>'+esc((e&&e.message)||"Unknown error")+'. Try refreshing.</div>';
@@ -529,6 +576,8 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   initTheme();
   $("newBtn").onclick=newCampaign;
   $("runNowBtn").onclick=runNow;
+  $("schedNowBtn").onclick=scheduleModal;
+  $("schedBtn").onclick=schedulesDrawer;
   $("fleetBtn").onclick=fleet;
   $("outBtn").onclick=function(){ lsDel(KEY_STORE); state.key=null; location.reload(); };
   state.key=ascii(lsGet(KEY_STORE));
