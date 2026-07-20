@@ -10,7 +10,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
 DECLARE
   v_existing uuid; v_id uuid;
   v_sets record; v_policy jsonb;
-  v_geo jsonb; v_requires boolean; v_deadline_h numeric;
+  v_geo jsonb; v_requires boolean; v_deadline_h numeric; v_target jsonb;
 BEGIN
   -- ---- validation (typed errors; no campaign on violation) ----
   IF p_request->>'schema_version' IS DISTINCT FROM '1.0' THEN
@@ -22,16 +22,26 @@ BEGIN
   IF coalesce(p_request->>'business_type','') = '' THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='business_type required';
   END IF;
-  IF p_request->'geo' IS NULL OR jsonb_typeof(p_request->'geo') <> 'object' THEN
-    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo required';
-  END IF;
-  v_geo := p_request->'geo';
-  IF v_geo->>'type' NOT IN ('zip','city_radius') THEN
-    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001',
-      DETAIL='geo.type must be zip|city_radius (region is not supported in v1)';
-  END IF;
-  IF coalesce((v_geo->>'radius_m')::int, 0) <= 0 THEN
-    RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo.radius_m required';
+  -- Target mode (analyze ONE business by name+city or website) OR area geo.
+  -- Target mode synthesizes a nominal geo so campaigns' NOT NULL geo columns hold;
+  -- Discovery reads campaigns.target and does a Places text search instead of nearby.
+  v_target := p_request->'target';
+  IF v_target IS NOT NULL AND jsonb_typeof(v_target) = 'object'
+     AND (coalesce(v_target->>'name','') <> '' OR coalesce(v_target->>'website','') <> '') THEN
+    v_geo := jsonb_build_object('type','city_radius','city',coalesce(v_target->>'city',''),'radius_m',1);
+  ELSE
+    v_target := NULL;
+    IF p_request->'geo' IS NULL OR jsonb_typeof(p_request->'geo') <> 'object' THEN
+      RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo or target required';
+    END IF;
+    v_geo := p_request->'geo';
+    IF v_geo->>'type' NOT IN ('zip','city_radius') THEN
+      RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001',
+        DETAIL='geo.type must be zip|city_radius (region is not supported in v1)';
+    END IF;
+    IF coalesce((v_geo->>'radius_m')::int, 0) <= 0 THEN
+      RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='geo.radius_m required';
+    END IF;
   END IF;
   IF p_request->>'depth' NOT IN ('quick','standard','deep') THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE='P0001', DETAIL='invalid depth';
@@ -84,7 +94,7 @@ BEGIN
   INSERT INTO campaigns
     (caller_identity, request_id, trigger_source, business_type,
      geo_type, geo_original, geo_radius_m, depth, volume_cap, budget_cap_usd,
-     requires_approval, approval_status, exclusions, dry_run,
+     requires_approval, approval_status, exclusions, dry_run, target,
      scoring_config_set_id, chain_rule_set_id, vertical_policy_set_id,
      model_policy_set_id, service_policy_set_id,
      status, campaign_deadline_at, approval_deadline_at,
@@ -97,7 +107,7 @@ BEGIN
      (p_request->'budget'->>'amount')::numeric,
      v_requires, CASE WHEN v_requires THEN 'pending' ELSE 'n/a' END,
      coalesce(p_request->'exclusions','{"domains":[],"names":[]}'),
-     coalesce((p_request->>'dry_run')::boolean, false),
+     coalesce((p_request->>'dry_run')::boolean, false), v_target,
      v_sets.scoring, v_sets.chain, v_sets.vertical, v_sets.model, v_sets.service,
      'discovering',
      now() + make_interval(hours => v_deadline_h::int),

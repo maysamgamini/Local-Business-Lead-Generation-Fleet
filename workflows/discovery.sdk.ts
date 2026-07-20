@@ -44,7 +44,7 @@ const getCampaign = node({
     position: [820, 340],
     parameters: {
       operation: 'executeQuery',
-      query: "SELECT id, business_type, geo_type, geo_original, geo_radius_m, depth, volume_cap, exclusions, dry_run FROM leadgen.campaigns WHERE id = $1",
+      query: "SELECT id, business_type, geo_type, geo_original, geo_radius_m, depth, volume_cap, exclusions, dry_run, target FROM leadgen.campaigns WHERE id = $1",
       options: { queryReplacement: expr('{{ $json.campaign_id }}') }
     },
     credentials: { postgres: newCredential('Postgres account') }
@@ -71,7 +71,9 @@ const placesSearch = node({
       sendBody: true,
       contentType: 'json',
       specifyBody: 'json',
-      jsonBody: expr('{{ { "textQuery": $json.business_type + " near " + ($json.geo_original.zip || $json.geo_original.city || ""), "pageSize": Math.min(20, Number($json.volume_cap)), "maxResultCount": Math.min(20, Number($json.volume_cap)) } }}')
+      // Target mode (campaign.target present) -> text search for ONE business (pageSize 1);
+      // else nearby area search by business_type + geo.
+      jsonBody: expr('={{ ($json.target && ($json.target.name || $json.target.website)) ? { "textQuery": (($json.target.name ? ($json.target.name + " " + ($json.target.city||"")) : $json.target.website)).trim(), "pageSize": 1, "maxResultCount": 1 } : { "textQuery": $json.business_type + " near " + ($json.geo_original.zip || $json.geo_original.city || ""), "pageSize": Math.min(20, Number($json.volume_cap)), "maxResultCount": Math.min(20, Number($json.volume_cap)) } }}')
     },
     credentials: { httpHeaderAuth: newCredential('Google Places API') }
   },

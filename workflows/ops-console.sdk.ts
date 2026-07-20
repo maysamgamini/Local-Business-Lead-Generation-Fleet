@@ -74,6 +74,8 @@ header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px
 .tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .tbtn.primary:hover{filter:brightness(1.06)}
 .tbtn.ghost{background:transparent}
+.segbtn{flex:1;justify-content:center}
+.segbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* KPI strip */
 .kpis{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;padding:18px 22px 6px}
@@ -414,13 +416,21 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   function newCampaign(){
     var wrap=document.createElement("div"); wrap.className="overlay";
     wrap.innerHTML='<div class="sheet"><div style="display:flex;align-items:center"><h3 style="margin:0">New campaign</h3><button class="close" title="Close">&times;</button></div>'+
-      '<p class="hint">Submits to the intake API. Form campaigns run without approval.</p>'+
+      '<div style="display:flex;gap:6px;margin:10px 0 14px"><button class="tbtn segbtn on" id="m_area">Search an area</button><button class="tbtn segbtn" id="m_target">Analyze one business</button></div>'+
       '<div class="field"><label>Business type</label><input id="f_bt" placeholder="e.g. med spa, HVAC, dentist"></div>'+
-      '<div class="grid2"><div class="field"><label>Location type</label><select id="f_gt"><option value="zip">ZIP code</option><option value="city_radius">City + radius</option></select></div>'+
-      '<div class="field"><label id="f_gl">ZIP code</label><input id="f_gv" placeholder="78704"></div></div>'+
-      '<div class="grid2"><div class="field"><label>Radius (miles)</label><input id="f_rad" type="number" value="8" min="1"></div>'+
-      '<div class="field"><label>Depth</label><select id="f_depth"><option>standard</option><option>quick</option><option>deep</option></select></div></div>'+
-      '<div class="grid2"><div class="field"><label>Volume cap</label><input id="f_vol" type="number" value="25" min="1" max="300"></div>'+
+      '<div id="grp_area">'+
+        '<div class="grid2"><div class="field"><label>Location type</label><select id="f_gt"><option value="zip">ZIP code</option><option value="city_radius">City + radius</option></select></div>'+
+        '<div class="field"><label id="f_gl">ZIP code</label><input id="f_gv" placeholder="78704"></div></div>'+
+        '<div class="grid2"><div class="field"><label>Radius (miles)</label><input id="f_rad" type="number" value="8" min="1"></div>'+
+        '<div class="field"><label>Volume cap</label><input id="f_vol" type="number" value="25" min="1" max="300"></div></div>'+
+      '</div>'+
+      '<div id="grp_target" style="display:none">'+
+        '<div class="field"><label>Business name</label><input id="t_name" placeholder="e.g. Skin Envy"></div>'+
+        '<div class="grid2"><div class="field"><label>City (optional)</label><input id="t_city" placeholder="Austin, TX"></div>'+
+        '<div class="field"><label>Website (optional)</label><input id="t_web" placeholder="https://…"></div></div>'+
+        '<p class="hint" style="margin:-4px 0 12px">Enter a business name (city helps disambiguate) or a website URL. Analyzes just that one business.</p>'+
+      '</div>'+
+      '<div class="grid2"><div class="field"><label>Depth</label><select id="f_depth"><option>standard</option><option>quick</option><option>deep</option></select></div>'+
       '<div class="field"><label>Budget (USD)</label><input id="f_bud" type="number" value="25" min="1"></div></div>'+
       '<div class="field" style="flex-direction:row;align-items:center;gap:8px"><input id="f_dry" type="checkbox" style="width:auto"><label style="text-transform:none;letter-spacing:0;font-size:13px">Dry run (note: not fully isolated yet)</label></div>'+
       '<div id="f_msg"></div>'+
@@ -429,18 +439,29 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var cl=function(){ wrap.remove(); };
     wrap.querySelector(".close").onclick=cl; $("f_cancel").onclick=cl;
     wrap.onclick=function(e){ if(e.target===wrap) cl(); };
+    var mode="area";
+    function setMode(m){ mode=m; $("m_area").classList.toggle("on",m==="area"); $("m_target").classList.toggle("on",m==="target"); $("grp_area").style.display=(m==="area")?"block":"none"; $("grp_target").style.display=(m==="target")?"block":"none"; }
+    $("m_area").onclick=function(){ setMode("area"); }; $("m_target").onclick=function(){ setMode("target"); };
     $("f_gt").onchange=function(){ var z=this.value==="zip"; $("f_gl").textContent=z?"ZIP code":"City"; $("f_gv").placeholder=z?"78704":"Austin, TX"; };
     $("f_go").onclick=function(){
-      var bt=$("f_bt").value.trim(); var gv=$("f_gv").value.trim(); var gt=$("f_gt").value;
-      var msg=$("f_msg");
-      if(!bt||!gv){ msg.innerHTML='<div class="msg err">Business type and location are required.</div>'; return; }
-      var geo={ type:gt, radius_m: Math.round((Number($("f_rad").value)||8)*1609) };
-      if(gt==="zip") geo.zip=gv; else geo.city=gv;
-      var body={ request_id:"console-"+Date.now(), business_type:bt, geo:geo, depth:$("f_depth").value,
-        volume_cap:Math.round(Number($("f_vol").value)||25), budget:{ amount:Number($("f_bud").value)||25, currency:"USD" }, dry_run:$("f_dry").checked };
+      var bt=$("f_bt").value.trim(); var msg=$("f_msg");
+      if(!bt){ msg.innerHTML='<div class="msg err">Business type is required.</div>'; return; }
+      var body={ request_id:"console-"+Date.now(), business_type:bt, depth:$("f_depth").value, budget:{ amount:Number($("f_bud").value)||25, currency:"USD" }, dry_run:$("f_dry").checked };
+      if(mode==="target"){
+        var nm=$("t_name").value.trim(), ws=$("t_web").value.trim(), ct=$("t_city").value.trim();
+        if(!nm && !ws){ msg.innerHTML='<div class="msg err">Enter a business name or a website.</div>'; return; }
+        var target={}; if(nm) target.name=nm; if(ct) target.city=ct; if(ws) target.website=ws;
+        body.target=target; body.volume_cap=1;
+      } else {
+        var gv=$("f_gv").value.trim(); var gt=$("f_gt").value;
+        if(!gv){ msg.innerHTML='<div class="msg err">Location is required.</div>'; return; }
+        var geo={ type:gt, radius_m: Math.round((Number($("f_rad").value)||8)*1609) };
+        if(gt==="zip") geo.zip=gv; else geo.city=gv;
+        body.geo=geo; body.volume_cap=Math.round(Number($("f_vol").value)||25);
+      }
       this.disabled=true; this.textContent="Launching…";
       var self=this;
-      fetch("leadgen-intake-api",{ method:"POST", headers:{ "x-leadgen-key":state.key, "content-type":"application/json" }, body:JSON.stringify(body) })
+      fetch("leadgen-intake-api",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify(body) })
         .then(function(r){ return r.json(); })
         .then(function(res){
           if(res && res.ok){ msg.innerHTML='<div class="msg ok">Campaign '+(res.creation_status||"created")+'. Refreshing…</div>'; setTimeout(function(){ cl(); boot(); }, 900); }
