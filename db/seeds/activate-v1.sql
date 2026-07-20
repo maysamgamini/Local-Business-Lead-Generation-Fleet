@@ -198,7 +198,10 @@ INSERT INTO %1$I.service_config
   ('social',     3, 3, NULL, 600, '{"apify_profile":0.02,"serpapi_search":0.01}', false),
   -- phone_probe: warm-gated Twilio AMD probe-caller (Phone Presence V2). Ships ENABLED
   -- (2026-07-20): auto-probes warm/hot leads with real outbound calls. Set false to disable.
-  ('phone_probe',3, 3, NULL, 300, '{"twilio_call":0.02}', true)
+  ('phone_probe',3, 3, NULL, 300, '{"twilio_call":0.02}', true),
+  -- ads: warm-gated live ad verification (Meta Ad Library API + SerpApi Google/Yelp ad
+  -- transparency). Upgrades homepage-pixel LIKELY signals to CONFIRMED with live-ad links.
+  ('ads',        3, 3, NULL, 600, '{"serpapi_search":0.01}', true)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
   max_concurrency = EXCLUDED.max_concurrency,

@@ -23,6 +23,7 @@ round-trips if ever needed.
 | Leadgen — Phone Probe (fleet) | phone-probe-service.sdk.ts | BP3pMFyvJ0n0bPLX |
 | Leadgen — Ops Console | ops-console.sdk.ts | k3EJWaGRnGg8tl3p |
 | Leadgen — Scheduler | scheduler.sdk.ts | zSW7lriZbXptYpz1 |
+| Leadgen — Ad Verification | ads-verification.sdk.ts | Ts7fpKJQacm8uhkX |
 
 **Free homepage-signal detection (2026-07-18)** — the Website Auditor now parses the
 already-fetched homepage (no extra API) for three signal classes, all written as typed
@@ -63,8 +64,14 @@ The **Report** renders an "Advertising" section from `marketing_pixels` — dete
 (LIKELY) or a "not advertising yet → consultation" pitch when none are found; the **Ops Console**
 lead board shows an `ads: <platforms>` / `no ads` chip. Report/console nodes deployed via the n8n
 **public REST API** (scripted PUT) — the console page + the AWS-keyed report node had outgrown the
-inline MCP deploy. Tier 2 (CONFIRMED via Meta Ad Library + SerpApi Google/Yelp transparency +
-Apify Nextdoor) is the follow-on warm-gated `ads` service.
+inline MCP deploy. **Tier 2 CONFIRMED (2026-07-20)** — new warm-gated **`ads`** service (`ads-verification.sdk.ts`,
+`Ts7fpKJQacm8uhkX`): migration 180 (+`ads` to work_items CHECK), `service_config.ads` enabled,
+created `blocked` at discovery + opened by the Scorer on warm/hot (complete_scorer ads gate),
+`complete_analysis` allowlist +`ads`, 30-day cache reuse. Worker: Meta Ad Library API (active
+creatives by name; token inline, redacted) + SerpApi `google_ads_transparency_center` (by domain)
+→ `ad_status` {tier CONFIRMED, summary{meta,google}, live_ad_urls} + `ad_active` evidence → re-score.
+Verified E2E (Austin Med Spa: done, meta/google NONE). Yelp (SerpApi) + Nextdoor (Apify) are v2.
+Deploys use the n8n REST API (patch scripts) — Meta token patched server-side, never in a tool call.
 
 **Ops Console actions (2026-07-20)** — three operator actions layered on the console (all through
 `SECURITY DEFINER` fns, `x-leadgen-key`-gated): **Run now** (per-campaign, clones config → intake
