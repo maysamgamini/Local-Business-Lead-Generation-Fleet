@@ -120,6 +120,61 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- _reuse_fresh_evidence: freshness cache for rediscovered businesses. If this
+-- business already has evidence for p_service from ANOTHER campaign observed within
+-- p_window, copy the latest-per-feature rows into p_campaign_id (preserving the real
+-- observed_at, so staleness/recency scoring stays honest) under a synthetic
+-- 'cache-reuse' service_run, and mark the just-created analyzer work item done —
+-- skipping the paid re-run. Only acts on an enabled, still-claimable work item
+-- (state blocked|pending); disabled services (skipped_prerequisite) are left alone.
+-- Returns the number of evidence rows copied (0 = cache miss / nothing to reuse).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION @@SCHEMA@@._reuse_fresh_evidence(
+  p_business_id uuid, p_campaign_id uuid, p_lead_id uuid, p_service text, p_window interval)
+RETURNS int
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE v_wi uuid; v_attempt int; v_run uuid; v_n int := 0; e record;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM evidence_items ei
+      WHERE ei.business_id = p_business_id AND ei.service = p_service
+        AND ei.campaign_id <> p_campaign_id AND ei.observed_at > now() - p_window) THEN
+    RETURN 0;
+  END IF;
+  SELECT id, execution_attempt_count INTO v_wi, v_attempt
+    FROM work_items
+   WHERE campaign_lead_id = p_lead_id AND service = p_service AND state IN ('blocked','pending');
+  IF v_wi IS NULL THEN RETURN 0; END IF;
+
+  INSERT INTO service_runs (work_item_id, work_attempt, service, input_version,
+                            workflow_version, status, completed_at)
+  VALUES (v_wi, v_attempt, p_service, 0, 'cache-reuse-v1', 'succeeded', now())
+  ON CONFLICT (work_item_id, work_attempt) DO UPDATE SET status = 'succeeded'
+  RETURNING id INTO v_run;
+
+  FOR e IN
+    SELECT DISTINCT ON (feature_key) feature_key, value_jsonb, value_type, unit,
+           product_tag, source_provider, observed_at, calculation_version, excerpt
+      FROM evidence_items
+     WHERE business_id = p_business_id AND service = p_service
+       AND campaign_id <> p_campaign_id AND observed_at > now() - p_window
+     ORDER BY feature_key, observed_at DESC
+  LOOP
+    INSERT INTO evidence_items (business_id, campaign_id, service, feature_key, product_tag,
+      value_jsonb, value_type, unit, source_provider, observed_at, service_run_id,
+      idempotency_key, calculation_version, excerpt)
+    VALUES (p_business_id, p_campaign_id, p_service, e.feature_key, e.product_tag,
+      e.value_jsonb, e.value_type, e.unit, e.source_provider, e.observed_at, v_run,
+      p_campaign_id::text||':'||p_business_id::text||':'||e.feature_key||':reused',
+      e.calculation_version, e.excerpt)
+    ON CONFLICT (campaign_id, service, idempotency_key) DO NOTHING;
+    v_n := v_n + 1;
+  END LOOP;
+
+  UPDATE work_items SET state = 'done', completed_at = now() WHERE id = v_wi;
+  RETURN v_n;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- commit_discovery_results: THE single transaction for discovery output.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION @@SCHEMA@@.commit_discovery_results(
@@ -209,6 +264,28 @@ BEGIN
     FROM service_config sc
     WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social','phone_probe')
     ON CONFLICT DO NOTHING;
+
+    -- FRESHNESS CACHE: for a REDISCOVERED business, skip re-running the expensive
+    -- analyzers when this business already has evidence for that service (from any
+    -- OTHER campaign) observed within the freshness window — reuse it instead of
+    -- re-paying the provider. Copies the latest-per-feature evidence into this
+    -- campaign and marks the analyzer work item done. Only touches enabled services
+    -- (claimable states); phone (free, review-derived) runs normally off the reused
+    -- reviews evidence, so its completion drives the assessment/dependency hooks.
+    IF v_redisc THEN
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'website',     interval '14 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'reviews',     interval '14 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'social',      interval '14 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'phone_probe', interval '14 days');
+      -- website+reviews were cache-completed without going through complete_analysis,
+      -- so resolve the phone dependency here (same rule complete_analysis uses).
+      UPDATE work_items SET state = 'pending', available_at = now()
+       WHERE campaign_lead_id = v_lead AND service = 'phone' AND state = 'blocked'
+         AND NOT EXISTS (SELECT 1 FROM work_items s
+              WHERE s.campaign_lead_id = v_lead AND s.service IN ('website','reviews')
+                AND s.state NOT IN ('done','dead','skipped_gate','skipped_budget',
+                                    'skipped_prerequisite','canceled'));
+    END IF;
 
     -- Leads with NO runnable analyzer (e.g. no-website + reviews/phone disabled)
     -- would never see an analyzer completion, so their assessment would stay
