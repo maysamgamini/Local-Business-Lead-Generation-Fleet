@@ -55,6 +55,17 @@ Requires `db/migrations/150_lead_reports_grant.sql` (grants SELECT on `lead_repo
 post-dated `100_privileges.sql`). Visual: Fraunces/IBM Plex, heat-as-semantic (hot/warm/cold/dq)
 separate from the beacon-azure accent; theme-aware.
 
+**Active-ad detection — Tier 1 LIKELY (2026-07-20)** — the Website Auditor's `detectPixels` now
+flags ad-intent pixels across Meta (`fbq`/`fbevents`), Google Ads (`AW-`/googleadservices/
+doubleclick), Yelp CAPI (`ndclid`/yelp-capi), Nextdoor (`js.nextdoor.com`), TikTok, LinkedIn, and
+X (`static.ads-twitter.com`) → `marketing_pixels` evidence (analytics like GA4/GTM stay analytics).
+The **Report** renders an "Advertising" section from `marketing_pixels` — detected platforms
+(LIKELY) or a "not advertising yet → consultation" pitch when none are found; the **Ops Console**
+lead board shows an `ads: <platforms>` / `no ads` chip. Report/console nodes deployed via the n8n
+**public REST API** (scripted PUT) — the console page + the AWS-keyed report node had outgrown the
+inline MCP deploy. Tier 2 (CONFIRMED via Meta Ad Library + SerpApi Google/Yelp transparency +
+Apify Nextdoor) is the follow-on warm-gated `ads` service.
+
 **Ops Console actions (2026-07-20)** — three operator actions layered on the console (all through
 `SECURITY DEFINER` fns, `x-leadgen-key`-gated): **Run now** (per-campaign, clones config → intake
 API → fresh campaign); **Re-analyze** (per-lead `POST /leadgen-console-action` {action:reanalyze} →
