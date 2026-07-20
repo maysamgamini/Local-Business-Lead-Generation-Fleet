@@ -19,6 +19,10 @@ round-trips if ever needed.
 | Leadgen — Social Activity | social-activity.sdk.ts | vwVPshHYWl4t8fzH |
 | ~~Website Auditor v1~~ (retired) | — | ecfwEfnWOCn9hPN4 (unpublished) |
 | Leadgen — Sweeper | sweeper.sdk.ts | f5xBdfjMchJgJOzq |
+| Leadgen — API Intake | intake-webhook.sdk.ts | stTulzWEWMCS9qPS |
+| Leadgen — Phone Probe (fleet) | phone-probe-service.sdk.ts | BP3pMFyvJ0n0bPLX |
+| Leadgen — Ops Console | ops-console.sdk.ts | k3EJWaGRnGg8tl3p |
+| Leadgen — Scheduler | scheduler.sdk.ts | zSW7lriZbXptYpz1 |
 
 **Free homepage-signal detection (2026-07-18)** — the Website Auditor now parses the
 already-fetched homepage (no extra API) for three signal classes, all written as typed
@@ -35,6 +39,38 @@ when a lead turns warm/hot; the worker reads `social_links` and scrapes Apify
 `when:true → +25`) → re-score. Ships behind `service_config.social.enabled` (flip to true once
 Apify credit is available). SerpApi profile-discovery (find profiles the homepage doesn't link)
 is a documented v2 enhancement.
+
+**Ops Console** (`ops-console.sdk.ts`, 2026-07-20) — internal operator dashboard served by n8n
+over the **prod** ledger, read-only (SELECT on existing tables — no DML, no new DB). A
+self-contained SPA (`GET /webhook/leadgen-console`, prompts once for `x-leadgen-key`, stored in
+the browser) backed by two gated JSON endpoints: `GET /webhook/leadgen-console-data` (fleet KPIs,
+campaigns with per-class lead counts + settled spend computed from **direct** `campaign_leads`/
+`budget_transactions` subqueries — NOT `campaign_progress`, whose leads/hot/spent are fan-out
+inflated, and `work_items` state matrix + `stuck_work_overview` count) and
+`GET /webhook/leadgen-console-leads?campaign=<uuid>` (opportunity-ranked leads: 4 fit scores,
+opp/contact/confidence, latest-per-feature evidence signals, and `report_url`). Both data endpoints
+require the `x-leadgen-key` header (same secret as the API Intake; redacted `<<INTAKE_API_KEY>>` in
+the archive, set live via `update_workflow`). "+ New campaign" reuses the API Intake webhook.
+Requires `db/migrations/150_lead_reports_grant.sql` (grants SELECT on `lead_reports`, which
+post-dated `100_privileges.sql`). Visual: Fraunces/IBM Plex, heat-as-semantic (hot/warm/cold/dq)
+separate from the beacon-azure accent; theme-aware.
+
+**Ops Console actions (2026-07-20)** — three operator actions layered on the console (all through
+`SECURITY DEFINER` fns, `x-leadgen-key`-gated): **Run now** (per-campaign, clones config → intake
+API → fresh campaign); **Re-analyze** (per-lead `POST /leadgen-console-action` {action:reanalyze} →
+`requeue_lead_analysis` reopens website/reviews/phone/social + assessment, bypassing the 30-day
+cache, excluding phone_probe); **Target mode** (New-campaign "Analyze one business" → `create_campaign`
+`target` + Discovery Places text search). **Scheduler** (`scheduler.sdk.ts`, hourly + poke) calls
+`fire_due_schedules()` → launches due `campaign_schedules` rows via `create_campaign(schedule)`;
+console "Schedule…" (`schedule_campaign`) + "Schedules" drawer (`cancel_campaign_schedule`). Cadences
+once/weekly/monthly; prod-only. Migrations 150/160/170; functions reanalyze.sql/schedules.sql +
+create_campaign target mode.
+
+**phone_probe enabled (prod, 2026-07-20)** — `service_config.phone_probe.enabled` flipped `true`
+in the `leadgen` namespace (runtime UPDATE; the seed still ships it disabled). The Scorer now opens
+a `phone_probe` gate on newly-warm/hot leads and the fleet worker (`BP3pMFyvJ0n0bPLX`) auto-probes
+them (Twilio AMD + greeting classification). Not enabled in `leadgen_dryrun` (dry-run isn't isolated
+— probing there would place real calls).
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
 - `Postgres account` (default name; role `leadgen_relay`) — host `postgres`, port 5432, db `leadgen_db`. **v1 role consolidation**: `leadgen_relay` holds the full WORKER function surface (db/functions/zz_worker_consolidation.sql), so ALL worker workflows run under this one credential. Preserved boundaries: no direct DML; human-actions (approval/sales-status/disposition/suppression/cancel) stay on `leadgen_human`; config-admin isolated; dashboard read-only. To restore the per-role split later, create per-role credentials and reassign. All role passwords: `ssh ... "cat /home/ubuntu/n8n/leadgen-db.env"`.
