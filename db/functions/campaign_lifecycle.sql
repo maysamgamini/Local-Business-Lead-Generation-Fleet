@@ -268,15 +268,15 @@ BEGIN
     -- FRESHNESS CACHE: for a REDISCOVERED business, skip re-running the expensive
     -- analyzers when this business already has evidence for that service (from any
     -- OTHER campaign) observed within the freshness window — reuse it instead of
-    -- re-paying the provider. Copies the latest-per-feature evidence into this
+    -- re-paying the provider (window = 30 days). Copies the latest-per-feature evidence into this
     -- campaign and marks the analyzer work item done. Only touches enabled services
     -- (claimable states); phone (free, review-derived) runs normally off the reused
     -- reviews evidence, so its completion drives the assessment/dependency hooks.
     IF v_redisc THEN
-      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'website',     interval '14 days');
-      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'reviews',     interval '14 days');
-      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'social',      interval '14 days');
-      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'phone_probe', interval '14 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'website',     interval '30 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'reviews',     interval '30 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'social',      interval '30 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'phone_probe', interval '30 days');
       -- website+reviews were cache-completed without going through complete_analysis,
       -- so resolve the phone dependency here (same rule complete_analysis uses).
       UPDATE work_items SET state = 'pending', available_at = now()
