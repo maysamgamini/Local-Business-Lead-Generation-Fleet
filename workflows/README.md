@@ -71,6 +71,9 @@ created `blocked` at discovery + opened by the Scorer on warm/hot (complete_scor
 creatives by name; token inline, redacted) + SerpApi `google_ads_transparency_center` (by domain)
 → `ad_status` {tier CONFIRMED, summary{meta,google}, live_ad_urls} + `ad_active` evidence → re-score.
 Verified E2E (Austin Med Spa: done, meta/google NONE). Yelp (SerpApi) + Nextdoor (Apify) are v2.
+The **report Advertising section + console `ads` chip prefer `ad_status`** (CONFIRMED per platform +
+clickable live-ad links) when the worker has verified, else fall back to LIKELY (pixels), else the
+"not advertising → consultation" pitch.
 Deploys use the n8n REST API (patch scripts) — Meta token patched server-side, never in a tool call.
 
 **Ops Console actions (2026-07-20)** — three operator actions layered on the console (all through
