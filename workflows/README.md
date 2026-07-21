@@ -24,6 +24,7 @@ round-trips if ever needed.
 | Leadgen — Ops Console | ops-console.sdk.ts | k3EJWaGRnGg8tl3p |
 | Leadgen — Scheduler | scheduler.sdk.ts | zSW7lriZbXptYpz1 |
 | Leadgen — Ad Verification | ads-verification.sdk.ts | Ts7fpKJQacm8uhkX |
+| Leadgen — Competitor Gap-Finder | competitors-gap.sdk.ts | gYE23EUlVMC9QtGp |
 
 **Free homepage-signal detection (2026-07-18)** — the Website Auditor now parses the
 already-fetched homepage (no extra API) for three signal classes, all written as typed
@@ -107,6 +108,28 @@ in the `leadgen` namespace (runtime UPDATE; the seed still ships it disabled). T
 a `phone_probe` gate on newly-warm/hot leads and the fleet worker (`BP3pMFyvJ0n0bPLX`) auto-probes
 them (Twilio AMD + greeting classification). Not enabled in `leadgen_dryrun` (dry-run isn't isolated
 — probing there would place real calls).
+
+**Competitor Gap-Finder (`competitors` service, warm-gated, 2026-07-21)** — new fleet worker
+(`competitors-gap.sdk.ts`, `gYE23EUlVMC9QtGp`) that turns the report's abstract "your competitors
+are capturing customers" line into a concrete, named side-by-side. Migration `190_competitors_service.sql`
+(+`competitors` to the work_items CHECK), `service_config.competitors` enabled, wired exactly like `ads`:
+created `blocked` at discovery (`commit_discovery_results` service list + 30-day `_reuse_fresh_evidence`),
+opened `blocked→pending` by the Scorer on warm/hot (`complete_scorer_work_item` competitors gate),
+`complete_analysis` allowlist +`competitors`. Worker: Get Target (category from `campaigns.business_type`
++ latest `rating`/`review_volume` evidence) → **Google Places Text Search** (`places:searchText`,
+`locationBias` circle around the target, "Header Auth account" cred) → **Rank** (exclude the target by
+place_id/all-token name, require ≥15 reviews, score = `rating × ln(1+reviews)`, pick the single best +
+2 runners-up) → deep-dive the BEST rival's live ads (Meta Ad Library + SerpApi Google/Yelp, **reusing the
+hardened all-token matcher** so a named rival is only called "advertising" when CONFIRMED) → `competitor_set`
+evidence `{target{rating,reviews}, best{name,rating,reviews,website,ads{summary,confirmed,live_ad_urls}},
+others[]}` → `complete_analysis` (cause `competitors_evidence`) → re-score. Bounded cost (warm leads only,
+one deep-dived rival). The **Report** renders a "How you stack up" section (Reviews / Rating / Running ads
+side-by-side) with a pitch that adapts to the widest sellable gap — competitor ads if the prospect isn't
+advertising, else review-volume, else market-leader framing. Verified E2E (Austin Med Spa 204 reviews vs.
+Skin Envy Austin 1,171 — ~6× review-volume gap, both ads NONE). Report competitor section deployed via the
+n8n REST API patch (like the Advertising section); the `report-generator.sdk.ts` archive lags the deployed
+node. NOTE: the Places cred is the n8n credential named "Header Auth account" (id `p6TPEFGKhcDgCCwv`), not
+"Google Places API"; HTTP-node creds + the Meta token are patched server-side after `create_workflow_from_code`.
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):
 - `Postgres account` (default name; role `leadgen_relay`) — host `postgres`, port 5432, db `leadgen_db`. **v1 role consolidation**: `leadgen_relay` holds the full WORKER function surface (db/functions/zz_worker_consolidation.sql), so ALL worker workflows run under this one credential. Preserved boundaries: no direct DML; human-actions (approval/sales-status/disposition/suppression/cancel) stay on `leadgen_human`; config-admin isolated; dashboard read-only. To restore the per-role split later, create per-role credentials and reassign. All role passwords: `ssh ... "cat /home/ubuntu/n8n/leadgen-db.env"`.

@@ -272,7 +272,7 @@ BEGIN
         ELSE 'blocked'   -- phone, enrichment, assessment, social: unblocked by dependency/gate hooks
       END
     FROM service_config sc
-    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social','phone_probe','ads')
+    WHERE sc.service IN ('website','reviews','phone','enrichment','assessment','social','phone_probe','ads','competitors')
     ON CONFLICT DO NOTHING;
 
     -- FRESHNESS CACHE: for a REDISCOVERED business, skip re-running the expensive
@@ -288,6 +288,7 @@ BEGIN
       PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'social',      interval '30 days');
       PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'phone_probe', interval '30 days');
       PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'ads',         interval '30 days');
+      PERFORM _reuse_fresh_evidence(v_biz, p_campaign_id, v_lead, 'competitors', interval '30 days');
       -- website+reviews were cache-completed without going through complete_analysis,
       -- so resolve the phone dependency here (same rule complete_analysis uses).
       UPDATE work_items SET state = 'pending', available_at = now()

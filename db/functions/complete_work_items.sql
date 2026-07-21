@@ -55,7 +55,7 @@ DECLARE
   item jsonb; ins record; v_new_evidence int := 0; v_rev bigint; v_state text;
 BEGIN
   w := _fenced_lock_work_item(p_work_item_id, p_claim_token);
-  IF w.service NOT IN ('website','reviews','phone','social','phone_probe','ads') THEN
+  IF w.service NOT IN ('website','reviews','phone','social','phone_probe','ads','competitors') THEN
     RAISE EXCEPTION 'invalid_transition' USING ERRCODE = 'P0001',
       DETAIL = 'complete_analysis called for service ' || w.service;
   END IF;
@@ -259,6 +259,17 @@ BEGIN
     ELSIF coalesce((p_payload->>'analysis_terminal')::boolean, false) THEN
       UPDATE work_items SET state = 'skipped_gate'
       WHERE campaign_lead_id = lead.id AND service = 'ads' AND state = 'blocked';
+    END IF;
+
+    -- Competitor gap-finder gate: a warm/hot lead is worth the paid competitor deep-dive (Places Text
+    -- Search + reused ad-verification matcher on the single best rival). Same warm-gate shape as ads;
+    -- no approval branch. Ships behind service_config.competitors.enabled.
+    IF v_class IN ('warm','hot') THEN
+      UPDATE work_items SET state = 'pending', available_at = now()
+      WHERE campaign_lead_id = lead.id AND service = 'competitors' AND state = 'blocked';
+    ELSIF coalesce((p_payload->>'analysis_terminal')::boolean, false) THEN
+      UPDATE work_items SET state = 'skipped_gate'
+      WHERE campaign_lead_id = lead.id AND service = 'competitors' AND state = 'blocked';
     END IF;
   END IF;
 

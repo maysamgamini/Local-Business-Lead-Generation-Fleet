@@ -201,7 +201,11 @@ INSERT INTO %1$I.service_config
   ('phone_probe',3, 3, NULL, 300, '{"twilio_call":0.02}', true),
   -- ads: warm-gated live ad verification (Meta Ad Library API + SerpApi Google/Yelp ad
   -- transparency). Upgrades homepage-pixel LIKELY signals to CONFIRMED with live-ad links.
-  ('ads',        3, 3, NULL, 600, '{"serpapi_search":0.01}', true)
+  ('ads',        3, 3, NULL, 600, '{"serpapi_search":0.01}', true),
+  -- competitors: warm-gated competitor gap-finder (Google Places Text Search to find + rank nearby
+  -- same-category rivals, then reuses the ad-verification matcher to deep-dive the single best one).
+  -- Feeds the Report's "How you stack up" side-by-side. Ships ENABLED.
+  ('competitors',3, 3, NULL, 600, '{"places_text":0.005,"serpapi_search":0.01}', true)
 ON CONFLICT (service) DO UPDATE SET
   claim_batch_size = EXCLUDED.claim_batch_size,
   max_concurrency = EXCLUDED.max_concurrency,
