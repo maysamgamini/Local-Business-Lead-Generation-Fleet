@@ -68,9 +68,17 @@ inline MCP deploy. **Tier 2 CONFIRMED (2026-07-20)** — new warm-gated **`ads`*
 `Ts7fpKJQacm8uhkX`): migration 180 (+`ads` to work_items CHECK), `service_config.ads` enabled,
 created `blocked` at discovery + opened by the Scorer on warm/hot (complete_scorer ads gate),
 `complete_analysis` allowlist +`ads`, 30-day cache reuse. Worker: Meta Ad Library API (active
-creatives by name; token inline, redacted) + SerpApi `google_ads_transparency_center` (by domain)
-→ `ad_status` {tier CONFIRMED, summary{meta,google}, live_ad_urls} + `ad_active` evidence → re-score.
-Verified E2E (Austin Med Spa: done, meta/google NONE). Yelp (SerpApi) + Nextdoor (Apify) are v2.
+creatives by name; token inline, redacted) + SerpApi `google_ads_transparency_center` (by domain) +
+SerpApi `yelp` (`find_desc`/`find_loc`) → `ad_status` {tier CONFIRMED, summary{meta,google,yelp},
+live_ad_urls} + `ad_active` evidence → re-score. **Matching (ads-v2.1):** a platform is CONFIRMED only
+when an ad's page/title contains EVERY significant token of the business name (len≥3, minus stopwords) —
+Meta/Yelp/Google results surface competitors bidding on the same terms, so first-word matching (e.g. a
+city name) produced false CONFIRMEDs that would wrongly disqualify a good lead; each `live_ad_url` is
+pushed only when its own platform is confirmed (Google is domain-scoped so needs no name match).
+Idempotency keys are version-pinned (`:ads-v2.1`) so a matcher bump appends a corrective observation
+(latest-wins). Verified E2E (Austin Med Spa: 2 Yelp ads returned were both competitors — "BestLaser",
+"Rejuvenate Austin" — correctly rejected → all NONE, `overall false`, a valid consultation lead).
+Nextdoor (Apify) is v3.
 The **report Advertising section + console `ads` chip prefer `ad_status`** (CONFIRMED per platform +
 clickable live-ad links) when the worker has verified, else fall back to LIKELY (pixels), else the
 "not advertising → consultation" pitch.
