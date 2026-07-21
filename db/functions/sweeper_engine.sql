@@ -86,6 +86,36 @@ BEGIN
   RETURN v_n;
 END $$;
 
+-- Dependency cleanup: completion hooks normally open phone work after website and
+-- reviews become terminal. A prerequisite can also become terminal through the
+-- Sweeper (for example failed_retryable -> dead), which bypasses those hooks.
+-- Reconcile the blocked dependent so campaigns cannot remain analyzing forever.
+CREATE OR REPLACE FUNCTION @@SCHEMA@@.reconcile_blocked_dependencies()
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
+DECLARE v_n int;
+BEGIN
+  UPDATE work_items p
+     SET state = 'pending', available_at = now()
+   WHERE p.service = 'phone'
+     AND p.state = 'blocked'
+     AND EXISTS (
+       SELECT 1 FROM service_config sc
+        WHERE sc.service = 'phone' AND sc.enabled
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM work_items prerequisite
+        WHERE prerequisite.campaign_lead_id = p.campaign_lead_id
+          AND prerequisite.service IN ('website','reviews')
+          AND prerequisite.state NOT IN
+            ('done','dead','skipped_gate','skipped_budget',
+             'skipped_prerequisite','canceled')
+     );
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n;
+END $$;
+
 -- Assessments behind the watermark: reopen assessment work per lead where the
 -- current assessment (or none) is older than lead_revision. A 'done' assessment
 -- reopens when its completed_version trails; a 'dead' assessment revives only when

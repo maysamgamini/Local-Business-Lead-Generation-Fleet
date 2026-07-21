@@ -68,8 +68,17 @@ BEGIN
     (s_scoring,'voice_ai','owner_response_rate','boolean_points',NULL,NULL,NULL,1,10,
        '{"when_lt":0.2,"points":10}','no_points','count_roots_only'),
     -- fit_ads_video
-    (s_scoring,'ads_video','ad_presence','boolean_points',NULL,NULL,NULL,1,30,
-       '{"when":"none","points":30}','no_points','count_roots_only'),
+    -- A verified ad check that found no active Meta/Google/Yelp campaign is a direct
+    -- campaign-management opportunity.  The ads worker produces ad_active (not the
+    -- legacy ad_presence key), so keep the scoring contract aligned with its producer.
+    (s_scoring,'ads_video','ad_active','boolean_points',NULL,NULL,NULL,1,25,
+       '{"when":false,"points":25}','no_points','count_roots_only'),
+    -- Homepage-linked social footprint is available on every reachable website and
+    -- gives Social Media Management a useful pre-gate signal.  "Weak" means fewer
+    -- than two detected owned profiles; reports must phrase this as not detected on
+    -- the homepage, never as proof that an account does not exist.
+    (s_scoring,'ads_video','social_platform_count','boolean_points',NULL,NULL,NULL,1,20,
+       '{"when_lt":2,"points":20}','no_points','count_roots_only'),
     (s_scoring,'ads_video','review_volume','log','higher_better',25,400,1,25,NULL,'no_points','count_roots_only'),
     (s_scoring,'ads_video','social_inactive_90d','boolean_points',NULL,NULL,NULL,1,25,
        '{"when":true,"points":25}','no_points','count_roots_only'),
@@ -137,6 +146,8 @@ BEGIN
       ('reviews_evidence','phone'), ('reviews_evidence','assessment'),
       ('phone_evidence','assessment'),
       ('social_evidence','assessment'),
+      ('ads_evidence','assessment'),
+      ('competitors_evidence','assessment'),
       ('contact_finding','assessment'), ('contact_verification','assessment'),
       ('suppression_change','enrichment'), ('suppression_change','assessment'),
       ('evidence_dispute','assessment')

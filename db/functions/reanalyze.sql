@@ -1,5 +1,5 @@
 -- reanalyze.sql — operator-triggered fresh re-analysis of a single lead (Ops Console feature #2).
--- Re-opens the lead's analyzer work items (website/reviews/phone/social) + the assessment work
+-- Re-opens the lead's analyzer work items (website/reviews/phone/social/ads/competitors) + the assessment work
 -- item to 'pending' so the workers re-scrape FRESH (the 30-day evidence cache only applies at
 -- discovery time, so a direct reopen always re-runs) and the scorer re-scores. Mirrors the
 -- reopen shape used by advance_lead_revision / requeue_stale_assessments (state->pending,
@@ -14,7 +14,7 @@
 
 CREATE OR REPLACE FUNCTION @@SCHEMA@@.requeue_lead_analysis(
   p_campaign_lead_id uuid,
-  p_services text[] DEFAULT ARRAY['website','reviews','phone','social'])
+  p_services text[] DEFAULT ARRAY['website','reviews','phone','social','ads','competitors'])
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
 DECLARE v_rev bigint; v_reopened int; v_exists boolean;

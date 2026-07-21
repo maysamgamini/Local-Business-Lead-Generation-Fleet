@@ -378,7 +378,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
       out.push('<span class="chip mut" title="Best nearby competitor snapshot from competitor_set evidence">'+esc(compLabel)+'</span>');
     }
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
-    out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh re-analysis: re-scrape website/reviews/social/phone and re-score">&#8635; Re-analyze</button>');
+    out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh deep analysis: website, reviews, social, phone, ads and competitors, then re-score">&#8635; Re-analyze</button>');
     return '<div class="chips">'+out.join("")+'</div>';
   }
   function contactSub(l){
@@ -507,7 +507,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   // ----- re-analyze one lead: force a fresh scrape + re-score via the action endpoint -----
   function reanalyze(leadId, btn){
     if(!leadId) return;
-    if(!window.confirm("Re-analyze this lead now? Re-scrapes website, reviews, social and phone, then re-scores. Spends a little API budget.")) return;
+    if(!window.confirm("Re-analyze this lead now? Rechecks website, reviews, social, phone, ads and competitors, then re-scores. This spends API budget.")) return;
     if(btn){ btn.disabled=true; btn.textContent="Re-analyzing…"; }
     fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"reanalyze", lead_id:leadId }) })
       .then(function(r){ return r.json(); })

@@ -66,6 +66,7 @@ BEGIN
       @@SCHEMA@@.reap_expired_leases(),
       @@SCHEMA@@.requeue_retryable_work(integer),
       @@SCHEMA@@.requeue_stale_assessments(),
+      @@SCHEMA@@.reconcile_blocked_dependencies(),
       @@SCHEMA@@.reconcile_expired_reservations(),
       @@SCHEMA@@.begin_campaign_finalization(uuid),
       @@SCHEMA@@.complete_campaign_finalization(uuid,uuid,bigint,jsonb),

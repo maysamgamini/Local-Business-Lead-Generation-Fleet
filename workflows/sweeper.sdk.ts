@@ -40,11 +40,11 @@ const runMaintenance = node({
     position: [560, 300],
     parameters: {
       operation: 'executeQuery',
-      query: "SELECT leadgen.skip_disabled_service_work() AS disabled_skipped, leadgen.reap_expired_leases() AS reaped, leadgen.requeue_retryable_work() AS requeued, leadgen.requeue_stale_assessments() AS stale_requeued, leadgen.reconcile_expired_reservations() AS budget_reconciled"
+      query: "SELECT leadgen.skip_disabled_service_work() AS disabled_skipped, leadgen.reap_expired_leases() AS reaped, leadgen.requeue_retryable_work() AS requeued, leadgen.reconcile_blocked_dependencies() AS dependencies_reconciled, leadgen.requeue_stale_assessments() AS stale_requeued, leadgen.reconcile_expired_reservations() AS budget_reconciled"
     },
     credentials: { postgres: newCredential('Postgres account') }
   },
-  output: [{ disabled_skipped: 0, reaped: {}, requeued: {}, stale_requeued: 0, budget_reconciled: {} }]
+  output: [{ disabled_skipped: 0, reaped: {}, requeued: {}, dependencies_reconciled: 0, stale_requeued: 0, budget_reconciled: {} }]
 });
 
 const findFinalizable = node({

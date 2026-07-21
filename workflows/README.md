@@ -26,6 +26,32 @@ round-trips if ever needed.
 | Leadgen — Ad Verification | ads-verification.sdk.ts | Ts7fpKJQacm8uhkX |
 | Leadgen — Competitor Gap-Finder | competitors-gap.sdk.ts | gYE23EUlVMC9QtGp |
 
+**Campaign-volume and stuck-analysis repair (2026-07-21)** — Discovery no longer
+treats Google Places' 20-result page limit as the campaign limit. It now requests
+enough SerpApi Maps pages to cover `volume_cap` (20/page, max 15 pages for the
+supported cap of 300), merges SerpApi candidates into the Places set, deduplicates,
+ranks, and commits up to the requested cap. Review Miner temporarily bypasses its
+Yelp Code node, and Social Activity runs in a safe degraded mode, because synchronous
+Apify actors exceeded n8n's 60-second JavaScript task limit. The Sweeper now calls
+`reconcile_blocked_dependencies()` so a review item that becomes `dead` still
+unblocks dependent `phone` work instead of leaving the campaign in `analyzing`.
+
+**Dynamic report-headline repair (2026-07-21)** — `gemini-flash-latest` began
+resolving to Gemini 3.6 Flash. The old `thinkingConfig:{thinkingBudget:0}` request
+became invalid, so every Compose Pitch call returned HTTP 400 and the HTML builder
+used its fixed fallback headline. Compose Pitch now sends a compatible request and
+allows 5,000 output tokens because Gemini 3.6 reasoning tokens count against the
+response budget. Personalized headlines, ledes, sections, and recommendations are
+generated again.
+
+**Competitor-selection correction (2026-07-21)** — the gap finder now ranks the
+businesses already discovered in the same campaign before using a new Places
+search. Candidates still require at least 15 reviews and are ordered by
+`rating × ln(1 + reviews)`. Places is fallback-only for campaigns without peers,
+and the common `HVAX` typo is normalized to `HVAC contractor`. Previously,
+`locationBias` was not a hard boundary, so a typo could return and select an
+unrelated company such as HVAX Technologies Ltd.
+
 **Free homepage-signal detection (2026-07-18)** — the Website Auditor now parses the
 already-fetched homepage (no extra API) for three signal classes, all written as typed
 evidence: **social presence** (`social_links`, `social_platform_count`), **marketing/tracking

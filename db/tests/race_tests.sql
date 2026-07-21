@@ -249,6 +249,10 @@ BEGIN
        WHERE event_type = 'workitem.dead'
          AND payload->>'work_item_id' = r.work_item_id::text) = 1,
       'dead work item emits notification');
+    PERFORM reconcile_blocked_dependencies();
+    PERFORM _assert((SELECT state FROM work_items
+       WHERE campaign_lead_id = r.campaign_lead_id AND service = 'phone') = 'pending',
+      'dead prerequisite reconciliation unblocks phone');
   END IF;
 END $t$;
 
