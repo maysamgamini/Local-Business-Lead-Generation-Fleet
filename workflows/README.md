@@ -127,8 +127,8 @@ one deep-dived rival). The **Report** renders a "How you stack up" section (Revi
 side-by-side) with a pitch that adapts to the widest sellable gap — competitor ads if the prospect isn't
 advertising, else review-volume, else market-leader framing. Verified E2E (Austin Med Spa 204 reviews vs.
 Skin Envy Austin 1,171 — ~6× review-volume gap, both ads NONE). Report competitor section deployed via the
-n8n REST API patch (like the Advertising section); the `report-generator.sdk.ts` archive lags the deployed
-node. NOTE: the Places cred is the n8n credential named "Header Auth account" (id `p6TPEFGKhcDgCCwv`), not
+n8n REST API patch (like the Advertising section); `report-generator.sdk.ts` is now synced with the deployed
+competitor-enabled report behavior. NOTE: the Places cred is the n8n credential named "Header Auth account" (id `p6TPEFGKhcDgCCwv`), not
 "Google Places API"; HTTP-node creds + the Meta token are patched server-side after `create_workflow_from_code`.
 
 Credential names workflows expect (create in n8n, values from /home/ubuntu/n8n/leadgen-db.env):

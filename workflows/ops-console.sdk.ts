@@ -235,7 +235,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ s=(s==null)?"":String(s); return s.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;").split('"').join("&quot;"); }
-  function num(v){ var n=Number(v); return isFinite(n)?n:null; }
+  function num(v){ if(v==null||v==="") return null; var n=Number(v); return isFinite(n)?n:null; }
   // Header values must be Latin-1; a pasted key can carry zero-width/smart chars. Keep printable ASCII only.
   function ascii(s){ s=(s==null)?"":String(s); var o=""; for(var i=0;i<s.length;i++){ var c=s.charCodeAt(i); if(c>32&&c<127) o+=s.charAt(i); } return o; }
   function heat(c){ return (c==="hot"||c==="warm"||c==="cold")?c:"dq"; }
@@ -364,6 +364,19 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(adConf.length){ out.push('<span class="chip ember" title="Confirmed active ads (live verification)">ads &#10003; '+esc(adConf.join(", "))+'</span>'); }
     else if(adOn.length){ out.push('<span class="chip gold" title="Ad pixels detected — likely running ads">ads: '+esc(adOn.join(", "))+'</span>'); }
     else if(s.marketing_pixels||asx){ out.push('<span class="chip leaf" title="No active ads / no ad pixels — consult opportunity">no ads</span>'); }
+    var comp=s.competitor_set||null;
+    if(comp && comp.best){
+      var best=comp.best||{};
+      var bestName=best.name?String(best.name):"Top competitor";
+      var myReviews=rv!=null?rv:num(comp.target&&comp.target.reviews);
+      var theirReviews=num(best.reviews);
+      var gap=(theirReviews!=null&&myReviews!=null)?(theirReviews-myReviews):null;
+      var confirmed=(best.ads&&Array.isArray(best.ads.confirmed))?best.ads.confirmed:[];
+      var compLabel='vs '+bestName;
+      if(gap!=null && gap>0) compLabel+=' · +'+gap+' rev';
+      if(confirmed.length) compLabel+=' · ads';
+      out.push('<span class="chip mut" title="Best nearby competitor snapshot from competitor_set evidence">'+esc(compLabel)+'</span>');
+    }
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
     out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh re-analysis: re-scrape website/reviews/social/phone and re-score">&#8635; Re-analyze</button>');
     return '<div class="chips">'+out.join("")+'</div>';
