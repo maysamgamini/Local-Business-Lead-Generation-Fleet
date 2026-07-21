@@ -20,7 +20,12 @@
 // one ads observation per business; a version bump appends a corrective observation (latest-wins).
 //
 // SECRETS: Meta Ad Library token inline in the Meta node (redacted <<META_TOKEN>> here); SerpApi via
-// the "SerpApi account" credential (Google + Yelp arms). Nextdoor (Apify) is a documented v3 addition.
+// the "SerpApi account" credential (Google + Yelp arms).
+// NEXTDOOR — LIKELY-only by design (no CONFIRMED arm): Nextdoor has no public ad transparency library
+// (in-feed, neighbor-targeted ads can't be enumerated externally) and Apify's Nextdoor actors return
+// business-directory data, not ads. Nextdoor advertising is covered as a LIKELY signal via the free
+// `nextdoor_pixel` in the Website Auditor. A CONFIRMED arm was evaluated and dropped (only defensible
+// source = active Local Deals, which needs an unproven paid actor with low yield + false-positive risk).
 import { workflow, node, trigger, sticky, newCredential, expr } from '@n8n/workflow-sdk';
 
 const everyMinute = trigger({ type: 'n8n-nodes-base.scheduleTrigger', version: 1.3, config: { name: 'Poll Ads Queue', position: [200, 240], parameters: { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } } }, output: [{}] });
@@ -40,7 +45,7 @@ const buildEvidence = node({ type: 'n8n-nodes-base.code', version: 2, config: { 
 
 const complete = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Complete Ads', position: [1500, 320], parameters: { operation: 'executeQuery', query: "=SELECT leadgen.complete_analysis_work_item('{{ $('Claim Ads Work').item.json.work_item_id }}'::uuid, '{{ $('Claim Ads Work').item.json.claim_token }}'::uuid, '{{ JSON.stringify($json.payload).replace(/'/g, \"''\") }}'::jsonb) AS result" }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ result: {} }] });
 
-const note = sticky('## Ad Verification (warm-gated `ads` service — Tier 2 CONFIRMED)\n\nClaim ads -> Get Target -> Meta Ad Library API + SerpApi google_ads_transparency_center (by domain) + SerpApi yelp (find_desc/find_loc) -> ad_status {tier CONFIRMED, summary{meta,google,yelp}, live_ad_urls} + ad_active -> complete_analysis_work_item (cause ads_evidence) -> re-score. Gated to warm/hot by the Scorer; behind service_config.ads.enabled. **ads-v2.1** matching requires ALL business-name tokens to match an ad (rejects competitors bidding on the same search); each live_ad_url gated on its platform being confirmed. Meta token inline (redacted); SerpApi via credential. v3: Nextdoor (Apify).', [claim], { color: 5 });
+const note = sticky('## Ad Verification (warm-gated `ads` service — Tier 2 CONFIRMED)\n\nClaim ads -> Get Target -> Meta Ad Library API + SerpApi google_ads_transparency_center (by domain) + SerpApi yelp (find_desc/find_loc) -> ad_status {tier CONFIRMED, summary{meta,google,yelp}, live_ad_urls} + ad_active -> complete_analysis_work_item (cause ads_evidence) -> re-score. Gated to warm/hot by the Scorer; behind service_config.ads.enabled. **ads-v2.1** matching requires ALL business-name tokens to match an ad (rejects competitors bidding on the same search); each live_ad_url gated on its platform being confirmed. Meta token inline (redacted); SerpApi via credential. Nextdoor is LIKELY-only (pixel) — no public ad transparency library, so no CONFIRMED arm.', [claim], { color: 5 });
 
 export default workflow('leadgen-ads-verification', 'Leadgen — Ad Verification')
   .add(everyMinute).to(claim)

@@ -78,7 +78,14 @@ pushed only when its own platform is confirmed (Google is domain-scoped so needs
 Idempotency keys are version-pinned (`:ads-v2.1`) so a matcher bump appends a corrective observation
 (latest-wins). Verified E2E (Austin Med Spa: 2 Yelp ads returned were both competitors — "BestLaser",
 "Rejuvenate Austin" — correctly rejected → all NONE, `overall false`, a valid consultation lead).
-Nextdoor (Apify) is v3.
+**Nextdoor is LIKELY-only (by design):** unlike Meta/Google/Yelp, Nextdoor has **no public ad
+transparency library** — its ads are shown in-feed to logged-in neighbors and can't be enumerated
+from outside, and Apify's Nextdoor actors return business-directory data (name/address/ratings/
+reviews/category), not ad or Local-Deals data. So Nextdoor advertising stays a LIKELY signal via the
+free `nextdoor_pixel` (js.nextdoor.com / nextdoorpixel / ndpixel) already detected by the Website
+Auditor. A CONFIRMED Nextdoor arm was evaluated and dropped: the only defensible source (active Local
+Deals) needs an unproven, paid Apify actor with low SMB yield, and a shaky proxy would risk a false
+CONFIRMED that wrongly disqualifies a good lead.
 The **report Advertising section + console `ads` chip prefer `ad_status`** (CONFIRMED per platform +
 clickable live-ad links) when the worker has verified, else fall back to LIKELY (pixels), else the
 "not advertising → consultation" pitch.
