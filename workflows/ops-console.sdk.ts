@@ -153,13 +153,16 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 .fit .col.best .cl{color:var(--accent-ink)}
 
 /* chips */
-.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:340px}
-.chip{font-size:11px;padding:3px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:520px}
+.chip{font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;font-family:inherit}
 .chip.ember{border-color:color-mix(in srgb,var(--hot) 45%,transparent);color:var(--hot);background:color-mix(in srgb,var(--hot) 12%,transparent)}
 .chip.gold{border-color:color-mix(in srgb,var(--warm) 45%,transparent);color:var(--warm);background:color-mix(in srgb,var(--warm) 12%,transparent)}
 .chip.leaf{border-color:color-mix(in srgb,var(--good) 45%,transparent);color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}
 .chip.mut{color:var(--muted)}
 .chip.rep{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-dim)}
+.chip.act-log{border-color:color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn);background:var(--panel2)}
+.chip.act-arc{border-color:color-mix(in srgb,var(--crit) 45%,transparent);color:var(--crit);background:color-mix(in srgb,var(--crit) 10%,transparent);font-weight:600}
+.chip.act-arc:hover{background:color-mix(in srgb,var(--crit) 25%,transparent)}
 
 /* fleet + modal + gate */
 .overlay{position:fixed;inset:0;background:rgba(6,9,14,.6);backdrop-filter:blur(3px);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px;overflow:auto}
@@ -216,7 +219,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     <div class="clist" id="clist"><div class="skel">Loading…</div></div>
   </aside>
   <section class="board">
-    <div class="bhead"><div class="ttl" id="boardTitle">Leads</div><div class="grow"></div><div id="boardMeta" class="cg" style="color:var(--muted);font-size:12px"></div><button class="tbtn" id="schedNowBtn" style="display:none" title="Schedule this campaign to run on a cadence">Schedule…</button><button class="tbtn" id="runNowBtn" style="display:none" title="Launch a fresh campaign with this configuration">Run now</button></div>
+    <div class="bhead"><div class="ttl" id="boardTitle">Leads</div><div class="grow"></div><div id="boardMeta" class="cg" style="color:var(--muted);font-size:12px"></div><button class="tbtn" id="schedNowBtn" style="display:none" title="Schedule this campaign to run on a cadence">Schedule…</button><button class="tbtn" id="runNowBtn" style="display:none" title="Launch a fresh campaign with this configuration">Run now</button><button class="tbtn ghost" id="arcCampBtn" style="display:none;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 45%,transparent);" title="Soft-archive this campaign and cascade to all leads, evidence, work items, and reports">&#128230; Archive Campaign</button></div>
     <div class="rows" id="rows"><div class="skel">Select a campaign.</div></div>
   </section>
 </main>
@@ -312,13 +315,27 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var btns=document.querySelectorAll(".camp");
     for(var i=0;i<btns.length;i++){ btns[i].classList.toggle("sel", btns[i].getAttribute("data-id")===id); }
     var c=null; for(var k=0;k<state.campaigns.length;k++){ if(state.campaigns[k].id===id) c=state.campaigns[k]; }
-    state.selected=c;
     $("runNowBtn").style.display=c?"inline-flex":"none";
     $("schedNowBtn").style.display=c?"inline-flex":"none";
+    $("arcCampBtn").style.display=c?"inline-flex":"none";
     $("boardTitle").textContent=c?(c.business_type||"Leads"):"Leads";
     $("boardMeta").textContent=c?(geoText(c.geo_original,c.geo_type)+" · "+(c.status||"")):"";
     $("rows").innerHTML='<div class="skel">Loading leads…</div>';
     api("leadgen-console-leads?campaign="+encodeURIComponent(id)).then(renderBoard).catch(fail);
+  }
+
+  function archiveCampaign(){
+    var cur=state.current; if(!cur) return;
+    var camp=null; for(var k=0;k<state.campaigns.length;k++){ if(state.campaigns[k].id===cur) camp=state.campaigns[k]; }
+    var label=camp?((camp.business_type||"Campaign")+" ("+geoText(camp.geo_original,camp.geo_type)+")"):cur;
+    if(!confirm("Soft-archive entire campaign '"+label+"' and cascade soft-archive to all leads, evidence, work items, and reports?\n\n(Archived evidence will be ignored by future runs, prompting fresh re-collection from live providers)")) return;
+    fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"archive_campaign", campaign_id:cur }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(res && res.ok){ toast("Campaign archived! All findings soft-archived."); state.current=null; boot(); }
+        else{ alert((res && res.error) || "Could not archive campaign."); }
+      })
+      .catch(fail);
   }
 
   // ----- lead board -----
@@ -679,6 +696,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   $("newBtn").onclick=newCampaign;
   $("runNowBtn").onclick=runNow;
   $("schedNowBtn").onclick=scheduleModal;
+  $("arcCampBtn").onclick=archiveCampaign;
   $("schedBtn").onclick=schedulesDrawer;
   $("fleetBtn").onclick=fleet;
   $("outBtn").onclick=function(){ lsDel(KEY_STORE); state.key=null; location.reload(); };
@@ -700,20 +718,18 @@ const authData = ifElse({ version: 2.2, config: { name: 'Data Authorized?', posi
 
 const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "'generated_at', now(),"
-  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns),"
-  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads),"
-  // Per-campaign counts come from DIRECT subqueries on campaign_leads — NOT campaign_progress,
-  // whose leads/hot/spent are fan-out-inflated (leads x work_items x budget_transactions).
+  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns WHERE archived_at IS NULL),"
+  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads WHERE archived_at IS NULL),"
   + "'campaigns', (SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.created_at DESC), '[]'::jsonb) FROM ("
   + "  SELECT cam.id, cam.status, cam.quality_state, cam.budget_state, cam.business_type, cam.created_at, cam.geo_original, cam.geo_type, cam.depth, cam.volume_cap, cam.budget_cap_usd,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id) AS leads,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='hot') AS hot,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='warm') AS warm,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='cold') AS cold,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='disqualified') AS dq,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.archived_at IS NULL) AS leads,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='hot' AND cl.archived_at IS NULL) AS hot,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='warm' AND cl.archived_at IS NULL) AS warm,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='cold' AND cl.archived_at IS NULL) AS cold,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='disqualified' AND cl.archived_at IS NULL) AS dq,"
   + "    (SELECT coalesce(sum(actual_usd),0) FROM leadgen.budget_transactions bt WHERE bt.campaign_id=cam.id AND bt.state='settled') AS spent_usd"
-  + "  FROM leadgen.campaigns cam ORDER BY cam.created_at DESC LIMIT 60) c),"
-  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items GROUP BY service, state) f),"
+  + "  FROM leadgen.campaigns cam WHERE cam.archived_at IS NULL ORDER BY cam.created_at DESC LIMIT 60) c),"
+  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items WHERE archived_at IS NULL GROUP BY service, state) f),"
   + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview)"
   + ") AS payload";
 
@@ -756,7 +772,7 @@ const hookAction = trigger({ type: 'n8n-nodes-base.webhook', version: 2.1, confi
 
 const authAction = ifElse({ version: 2.2, config: { name: 'Action Authorized?', position: [440, 800], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, combinator: 'and', conditions: [{ leftValue: expr("{{ $json.headers['x-leadgen-key'] }}"), operator: { type: 'string', operation: 'equals' }, rightValue: '<<INTAKE_API_KEY>>' }] } } } });
 
-const execAction = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Execute Action', position: [700, 800], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: "SELECT leadgen.archive_lead(($1->>'lead_id')::uuid) AS payload", options: { queryReplacement: expr('={{ $json.body }}') } }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: {} }] });
+const execAction = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Execute Action', position: [700, 800], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: "SELECT CASE WHEN ($1->>'action') = 'archive_campaign' THEN leadgen.archive_campaign(($1->>'campaign_id')::uuid) ELSE leadgen.archive_lead(($1->>'lead_id')::uuid) END AS payload", options: { queryReplacement: expr('={{ $json.body }}') } }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: {} }] });
 
 const respondAction = node({ type: 'n8n-nodes-base.respondToWebhook', version: 1.5, config: { name: 'Serve Action', position: [960, 800], parameters: { respondWith: 'json', responseBody: expr('={{ $json.payload || { "ok": true } }}'), options: { responseHeaders: { entries: [{ name: 'Access-Control-Allow-Origin', value: '*' }, { name: 'Access-Control-Allow-Headers', value: '*' }, { name: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' }] } } } } });
 
