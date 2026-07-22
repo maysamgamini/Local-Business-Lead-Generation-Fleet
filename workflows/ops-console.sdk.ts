@@ -112,8 +112,13 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 .st-run{color:var(--accent-ink);background:var(--accent-dim);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 .st-wait{color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
 .st-fail{color:var(--crit);background:color-mix(in srgb,var(--crit) 15%,transparent);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
-.st-archived{color:var(--dq);background:color-mix(in srgb,var(--dq) 15%,transparent);border-color:color-mix(in srgb,var(--dq) 35%,transparent)}
+.st-archived{color:var(--crit);background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.4)}
 .st-idle{color:var(--muted);background:var(--panel2);border-color:var(--line)}
+
+/* archived campaign styling */
+.camp.is-archived{border-left:4px solid var(--crit)!important;background:color-mix(in srgb,var(--crit) 5%,var(--panel))!important}
+.rows.is-archived{border:2px dashed rgba(239,68,68,0.4)!important;border-radius:12px;background:rgba(239,68,68,0.015);padding:12px}
+.rows.is-archived .lead{border-color:rgba(239,68,68,0.25)!important;box-shadow:0 1px 4px rgba(239,68,68,0.05)}
 
 /* lead board */
 .board{min-width:0}
@@ -221,6 +226,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   </aside>
   <section class="board">
     <div class="bhead"><div class="ttl" id="boardTitle">Leads</div><div class="grow"></div><div id="boardMeta" class="cg" style="color:var(--muted);font-size:12px"></div><button class="tbtn" id="schedNowBtn" style="display:none" title="Schedule this campaign to run on a cadence">Schedule…</button><button class="tbtn" id="runNowBtn" style="display:none" title="Launch a fresh campaign with this configuration">Run now</button><button class="tbtn ghost" id="arcCampBtn" style="display:none;color:var(--crit);border-color:color-mix(in srgb,var(--crit) 45%,transparent);" title="Soft-archive this campaign and cascade to all leads, evidence, work items, and reports">&#128230; Archive Campaign</button></div>
+    <div id="arcBanner" style="display:none;align-items:center;gap:10px;background:rgba(239,68,68,0.08);border:1px dashed rgba(239,68,68,0.4);border-radius:8px;padding:10px 14px;color:var(--crit);margin-bottom:14px;font-size:13px;"><span style="font-size:16px;">&#128230;</span> <span><b>Archived Campaign (Read Only):</b> This campaign and all its leads and evidence are soft-archived. Fresh campaign runs will ignore this evidence and re-collect live data from web/search providers.</span></div>
     <div class="rows" id="rows"><div class="skel">Select a campaign.</div></div>
   </section>
 </main>
@@ -301,9 +307,10 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var h="";
     for(var i=0;i<list.length;i++){ var c=list[i];
       var leads=Number(c.leads)||0;
+      var isArc=(c.status==="archived"||c.archived_at!=null);
       var seg=function(k){ var v=Number(c[k])||0; var p=leads>0?(v/leads*100):0; return v>0?('<i class="'+k+'" style="width:'+p+'%"></i>'):""; };
       var stack='<div class="stack">'+seg("hot")+seg("warm")+seg("cold")+seg("dq")+'</div>';
-      h+='<button class="camp" data-id="'+esc(c.id)+'"><div class="top"><span class="ct">'+esc(c.business_type||"—")+'</span>'+statusPill(c.status)+'</div>'+
+      h+='<button class="camp'+(isArc?' is-archived':'')+'" data-id="'+esc(c.id)+'"><div class="top"><span class="ct">'+esc(c.business_type||"—")+'</span>'+statusPill(isArc?'archived':c.status)+'</div>'+
          '<div class="cg">'+esc(geoText(c.geo_original,c.geo_type))+'</div>'+stack+
          '<div class="meta"><span>'+leads+' leads · '+(Number(c.hot)||0)+'H '+(Number(c.warm)||0)+'W</span><span>'+money(c.spent_usd)+' · '+fmtDate(c.created_at)+'</span></div></button>';
     }
@@ -317,12 +324,16 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var btns=document.querySelectorAll(".camp");
     for(var i=0;i<btns.length;i++){ btns[i].classList.toggle("sel", btns[i].getAttribute("data-id")===id); }
     var c=null; for(var k=0;k<state.campaigns.length;k++){ if(state.campaigns[k].id===id) c=state.campaigns[k]; }
-    $("runNowBtn").style.display=c?"inline-flex":"none";
-    $("schedNowBtn").style.display=c?"inline-flex":"none";
-    $("arcCampBtn").style.display=c?"inline-flex":"none";
-    $("boardTitle").textContent=c?(c.business_type||"Leads"):"Leads";
-    $("boardMeta").textContent=c?(geoText(c.geo_original,c.geo_type)+" · "+(c.status||"")):"";
-    $("rows").innerHTML='<div class="skel">Loading leads…</div>';
+    var isArc=c&&(c.status==="archived"||c.archived_at!=null);
+    $("runNowBtn").style.display=(c&&!isArc)?"inline-flex":"none";
+    $("schedNowBtn").style.display=(c&&!isArc)?"inline-flex":"none";
+    $("arcCampBtn").style.display=(c&&!isArc)?"inline-flex":"none";
+    if($("arcBanner")) $("arcBanner").style.display=isArc?"flex":"none";
+    $("boardTitle").innerHTML=c?(esc(c.business_type||"Leads")+(isArc?' <span class="pill st-archived" style="color:var(--crit);border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.12);font-weight:700;">&#128230; ARCHIVED</span>':'')):"Leads";
+    $("boardMeta").textContent=c?(geoText(c.geo_original,c.geo_type)+" · "+(isArc?"archived (read-only)":(c.status||""))):"";
+    var rowsEl=$("rows");
+    if(rowsEl){ if(isArc) rowsEl.classList.add("is-archived"); else rowsEl.classList.remove("is-archived"); }
+    rowsEl.innerHTML='<div class="skel">Loading leads…</div>';
     api("leadgen-console-leads?campaign="+encodeURIComponent(id)).then(renderBoard).catch(fail);
   }
 
