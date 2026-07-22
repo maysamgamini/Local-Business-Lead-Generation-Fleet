@@ -468,7 +468,8 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   function openDebugLogsModal(l){
     var s=l.signals||{}, ev=l.evidence_ledger||[], runs=l.service_runs||[];
     var plog=s.phone_probe_log||{};
-    var phoneEv=ev.filter(function(e){ return e.source_provider==='phone_probe'||(e.feature_key&&e.feature_key.indexOf('phone')>=0); });
+    var activeEv=l.archived_at ? ev : ev.filter(function(e){ return !e.archived_at; });
+    var phoneEv=activeEv.filter(function(e){ return e.source_provider==='phone_probe'||(e.feature_key&&e.feature_key.indexOf('phone')>=0); });
     var phoneRuns=runs.filter(function(r){ return r.service==='phone_probe'; });
     var phoneSummary={
       phone_e164: l.phone||plog.phone_e164||null,
@@ -805,8 +806,8 @@ const LEADS_SQL = "SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.opportunity 
   + " a.opportunity_score AS opportunity, a.contactability_score AS contactability, a.evidence_confidence AS confidence,"
   + " a.fit_web_seo AS web_seo, a.fit_voice_ai AS voice_ai, a.fit_ads_video AS ads_video, a.fit_consulting AS consulting, a.best_angle,"
   + " r.report_url, r.summary AS report_summary, r.prompt_version, r.model_version, r.validation AS report_validation,"
-  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
-  + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at, e.archived_at FROM leadgen.evidence_items e WHERE e.business_id=b.id ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
+  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id AND e.archived_at IS NULL ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
+  + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at, e.archived_at FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id AND e.archived_at IS NULL ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
   + " (SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.completed_at DESC NULLS LAST), '[]'::jsonb) FROM (SELECT sr.service, sr.started_at, sr.completed_at, sr.status FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id=sr.work_item_id WHERE wi.campaign_lead_id=cl.id ORDER BY sr.completed_at DESC) sr) AS service_runs"
   + " FROM leadgen.campaign_leads cl JOIN leadgen.businesses b ON b.id=cl.business_id"
   + " LEFT JOIN leadgen.lead_assessments a ON a.id=cl.latest_assessment_id"
