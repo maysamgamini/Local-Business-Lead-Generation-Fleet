@@ -18,3 +18,22 @@ node_modules/
 # Embedded clone of n8n-io/n8n-hosting with local secrets (SSH key, .env cookies)
 n8n-hosting/
 *.pem
+
+# Local scratch directory & temporary work notes
+scratch/
+leads_no_yelp_ads.md
+scripts/__pycache__/
+
+# Local diagnostic, test, and utility scripts
+scripts/check_*.py
+scripts/inspect_*.py
+scripts/test_*.py
+scripts/test_*.ts
+scripts/verify_*.py
+scripts/find_*.py
+scripts/deploy_*.py
+scripts/parse_*.ts
+scripts/patch_report_generator_aws_keys.py
+scripts/redeploy_ops_console_cors.py
+scripts/temp_live_script.js
+
