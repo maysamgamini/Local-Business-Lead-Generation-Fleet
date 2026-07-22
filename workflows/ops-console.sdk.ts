@@ -112,6 +112,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 .st-run{color:var(--accent-ink);background:var(--accent-dim);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 .st-wait{color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
 .st-fail{color:var(--crit);background:color-mix(in srgb,var(--crit) 15%,transparent);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
+.st-archived{color:var(--dq);background:color-mix(in srgb,var(--dq) 15%,transparent);border-color:color-mix(in srgb,var(--dq) 35%,transparent)}
 .st-idle{color:var(--muted);background:var(--panel2);border-color:var(--line)}
 
 /* lead board */
@@ -290,6 +291,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     else if(s==="discovering"||s==="analyzing"||s==="finalizing") cls="st-run";
     else if(s==="awaiting_approval") cls="st-wait";
     else if(s==="failed"||s==="canceled") cls="st-fail";
+    else if(s==="archived") cls="st-archived";
     return '<span class="pill '+cls+'">'+esc(t)+'</span>';
   }
   function geoText(g,t){ if(!g) return t||""; if(g.zip) return g.zip; if(g.city) return g.city; if(g.type) return g.type; return t||""; }
@@ -397,7 +399,11 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
     out.push('<button class="chip act-log" data-lead="'+esc(l.lead_id)+'" title="Inspect phone transcripts, LLM inputs, Bing ads, and JSON evidence ledger">{ } Debug Logs</button>');
     out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh deep analysis: website, reviews, social, phone, ads and competitors, then re-score">&#8635; Re-analyze</button>');
-    out.push('<button class="chip act-arc" data-lead="'+esc(l.lead_id)+'" style="color:var(--dq);border-color:var(--dq);" title="Soft-archive this lead and its evidence">&#128230; Archive</button>');
+    if(l.archived_at){
+      out.push('<span class="chip mut" style="color:var(--dq);border-color:var(--dq);" title="Lead is soft-archived">&#128230; Archived</span>');
+    }else{
+      out.push('<button class="chip act-arc" data-lead="'+esc(l.lead_id)+'" style="color:var(--dq);border-color:var(--dq);" title="Soft-archive this lead and its evidence">&#128230; Archive</button>');
+    }
     return '<div class="chips">'+out.join("")+'</div>';
   }
   function contactSub(l){
@@ -427,9 +433,10 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
       var oppv=opp==null?0:Math.max(0,Math.min(100,opp));
       var color="var(--"+hc+")";
       var tag=l.hot_candidate&&l.classification!=="hot"?'<span class="htag warm" title="Hot candidate awaiting critic">candidate</span>':"";
-      h+='<div class="lead">'+
+      var arcTag=l.archived_at?'<span class="htag dq" title="Lead is soft-archived">&#128230; archived</span>':"";
+      h+='<div class="lead" style="'+(l.archived_at?'opacity:0.75;':'')+'">'+
          '<div class="rank mono">'+(i+1)+'</div>'+
-         '<div class="who"><div class="nm"><span class="heat '+hc+'"></span>'+esc(l.name||"—")+' <span class="htag '+hc+'">'+esc(l.classification||"?")+'</span>'+tag+'</div><div class="sub">'+contactSub(l)+'</div></div>'+
+         '<div class="who"><div class="nm"><span class="heat '+hc+'"></span>'+esc(l.name||"—")+' <span class="htag '+hc+'">'+esc(l.classification||"?")+'</span>'+tag+arcTag+'</div><div class="sub">'+contactSub(l)+'</div></div>'+
          '<div class="opp"><div class="val mono" style="color:'+color+'">'+(opp==null?"—":Math.round(opp))+'</div><div class="bar"><div class="fill" style="width:'+oppv+'%;background:'+color+'"></div><div class="tick"></div></div><small>opportunity</small></div>'+
          '<div>'+fitStrip(l)+'</div>'+
          chips(l)+
@@ -718,18 +725,18 @@ const authData = ifElse({ version: 2.2, config: { name: 'Data Authorized?', posi
 
 const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "'generated_at', now(),"
-  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns WHERE archived_at IS NULL),"
-  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads WHERE archived_at IS NULL),"
+  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns),"
+  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads),"
   + "'campaigns', (SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.created_at DESC), '[]'::jsonb) FROM ("
-  + "  SELECT cam.id, cam.status, cam.quality_state, cam.budget_state, cam.business_type, cam.created_at, cam.geo_original, cam.geo_type, cam.depth, cam.volume_cap, cam.budget_cap_usd,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.archived_at IS NULL) AS leads,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='hot' AND cl.archived_at IS NULL) AS hot,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='warm' AND cl.archived_at IS NULL) AS warm,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='cold' AND cl.archived_at IS NULL) AS cold,"
-  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='disqualified' AND cl.archived_at IS NULL) AS dq,"
+  + "  SELECT cam.id, cam.status, cam.quality_state, cam.budget_state, cam.business_type, cam.created_at, cam.geo_original, cam.geo_type, cam.depth, cam.volume_cap, cam.budget_cap_usd, cam.archived_at,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id) AS leads,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='hot') AS hot,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='warm') AS warm,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='cold') AS cold,"
+  + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='disqualified') AS dq,"
   + "    (SELECT coalesce(sum(actual_usd),0) FROM leadgen.budget_transactions bt WHERE bt.campaign_id=cam.id AND bt.state='settled') AS spent_usd"
-  + "  FROM leadgen.campaigns cam WHERE cam.archived_at IS NULL ORDER BY cam.created_at DESC LIMIT 60) c),"
-  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items WHERE archived_at IS NULL GROUP BY service, state) f),"
+  + "  FROM leadgen.campaigns cam ORDER BY cam.created_at DESC LIMIT 60) c),"
+  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items GROUP BY service, state) f),"
   + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview)"
   + ") AS payload";
 
@@ -753,13 +760,13 @@ const LEADS_SQL = "SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.opportunity 
   + " a.opportunity_score AS opportunity, a.contactability_score AS contactability, a.evidence_confidence AS confidence,"
   + " a.fit_web_seo AS web_seo, a.fit_voice_ai AS voice_ai, a.fit_ads_video AS ads_video, a.fit_consulting AS consulting, a.best_angle,"
   + " r.report_url, r.summary AS report_summary, r.prompt_version, r.model_version, r.validation AS report_validation,"
-  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id AND e.archived_at IS NULL ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
+  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
   + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at, e.archived_at FROM leadgen.evidence_items e WHERE e.business_id=b.id ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
   + " (SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.completed_at DESC NULLS LAST), '[]'::jsonb) FROM (SELECT sr.service, sr.started_at, sr.completed_at, sr.status FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id=sr.work_item_id WHERE wi.campaign_lead_id=cl.id ORDER BY sr.completed_at DESC) sr) AS service_runs"
   + " FROM leadgen.campaign_leads cl JOIN leadgen.businesses b ON b.id=cl.business_id"
   + " LEFT JOIN leadgen.lead_assessments a ON a.id=cl.latest_assessment_id"
   + " LEFT JOIN leadgen.lead_reports r ON r.campaign_lead_id=cl.id"
-  + " WHERE cl.campaign_id = $1::uuid AND cl.archived_at IS NULL) x";
+  + " WHERE cl.campaign_id = $1::uuid) x";
 
 const queryLeads = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Query Leads', position: [960, 540], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: LEADS_SQL, options: { queryReplacement: expr('={{ $json.campaign_id }}') } }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: [] }] });
 

@@ -31,7 +31,7 @@ BEGIN
     RAISE EXCEPTION 'lead_not_found' USING ERRCODE = 'P0001';
   END IF;
 
-  UPDATE campaign_leads SET archived_at = now() WHERE id = p_campaign_lead_id AND archived_at IS NULL;
+  UPDATE campaign_leads SET archived_at = now() WHERE id = p_campaign_lead_id;
   
   UPDATE evidence_items SET archived_at = now() 
    WHERE business_id = v_business_id AND campaign_id = v_campaign_id AND archived_at IS NULL;
@@ -55,7 +55,7 @@ RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
 DECLARE v_lead_cnt int; v_ev_cnt int; v_wi_cnt int;
 BEGIN
-  UPDATE campaigns SET archived_at = now() WHERE id = p_campaign_id AND archived_at IS NULL;
+  UPDATE campaigns SET status = 'archived', archived_at = now() WHERE id = p_campaign_id;
 
   UPDATE campaign_leads SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
   GET DIAGNOSTICS v_lead_cnt = ROW_COUNT;
