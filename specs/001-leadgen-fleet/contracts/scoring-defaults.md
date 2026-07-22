@@ -57,11 +57,20 @@ Each fit clamps at 100, so a dated + stale + mobile-broken site maxes web_seo �
 
 | feature_key | transform | params | max points |
 |---|---|---|---|
-| ad_presence = none (Meta/Google checks) | boolean_points | — | 30 |
+| **ad_active = false** | boolean_points | verified Meta/Google/Yelp checks found no active campaign | **25** |
+| **social_platform_count < 2** | boolean_points | fewer than two owned social links detected on the homepage | **20** |
 | review_volume (demand proof) | log | 25→0pts floor, 100→15, 400+→25 | 25 |
 | social_inactive_90d | boolean_points | — | 25 | *(producer wired 2026-07-18: Social Activity service — Apify IG/TikTok last-post recency, or TRUE when no social presence)* |
 | photo_asset_count ≥ 10 | boolean_points | — | 10 |
 | rating ≥ 4.0 (good product, weak marketing) | boolean_points | — | 10 |
+
+`ad_active=false` means no active Meta, Google, or Yelp campaign was found by the
+sources checked; it is not universal proof that the business runs no advertising.
+Nextdoor has no public ad-transparency source, so its homepage pixel is a
+detected/likely signal only and absence is reported as “not detected.” The social
+footprint rule is deliberately available before the paid activity scrape so Social
+Media Management is represented in the initial evaluation. Each fit remains capped
+at 100.
 
 ## fit_consulting (max 100)
 

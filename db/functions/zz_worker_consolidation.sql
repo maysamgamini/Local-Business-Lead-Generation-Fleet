@@ -34,6 +34,7 @@ GRANT EXECUTE ON FUNCTION
   @@SCHEMA@@.skip_disabled_service_work(),
   @@SCHEMA@@.reconcile_blocked_dependencies(),
   @@SCHEMA@@.record_lead_report(uuid,text,text,text,text,text),
+  @@SCHEMA@@.record_lead_report_v2(uuid,text,text,text,text,text,uuid,jsonb,text,text,jsonb,text),
   @@SCHEMA@@.reconcile_expired_reservations(),
   @@SCHEMA@@.begin_campaign_finalization(uuid),
   @@SCHEMA@@.complete_campaign_finalization(uuid,uuid,bigint,jsonb),

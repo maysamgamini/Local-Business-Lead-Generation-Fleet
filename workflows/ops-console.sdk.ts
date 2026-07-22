@@ -359,8 +359,8 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(s.booking_widget_present===true){ out.push('<span class="chip leaf" title="Booking widget on site">booking</span>'); }
     if(unmemorable(l.domain)){ out.push('<span class="chip gold" title="Long / hard-to-recall domain">long domain</span>'); }
     if(l.rediscovered===true){ out.push('<span class="chip mut" title="Evidence reused from a prior campaign">&#8635; cached</span>'); }
-    var mp=s.marketing_pixels||{}; var adDefs=[["meta_pixel","Meta"],["google_ads","Google"],["yelp_pixel","Yelp"],["nextdoor_pixel","Nextdoor"],["tiktok_pixel","TikTok"],["linkedin_insight","LinkedIn"],["twitter_ads","X"]]; var adOn=[]; for(var ai=0;ai<adDefs.length;ai++){ if(mp[adDefs[ai][0]]===true) adOn.push(adDefs[ai][1]); }
-    var asx=s.ad_status||null; var adConf=[]; if(asx&&asx.summary){ if(asx.summary.meta==="CONFIRMED")adConf.push("Meta"); if(asx.summary.google==="CONFIRMED")adConf.push("Google"); if(asx.summary.yelp==="CONFIRMED")adConf.push("Yelp"); if(asx.summary.nextdoor==="CONFIRMED")adConf.push("Nextdoor"); }
+    var mp=s.marketing_pixels||{}; var adDefs=[["meta_pixel","Meta"],["google_ads","Google"],["bing_ads","Bing"],["yelp_pixel","Yelp"],["nextdoor_pixel","Nextdoor"],["tiktok_pixel","TikTok"],["linkedin_insight","LinkedIn"],["twitter_ads","X"]]; var adOn=[]; for(var ai=0;ai<adDefs.length;ai++){ if(mp[adDefs[ai][0]]===true) adOn.push(adDefs[ai][1]); }
+    var asx=s.ad_status||null; var adConf=[]; if(asx&&asx.summary){ if(asx.summary.meta==="CONFIRMED")adConf.push("Meta"); if(asx.summary.google==="CONFIRMED")adConf.push("Google"); if(asx.summary.bing==="CONFIRMED")adConf.push("Bing"); if(asx.summary.yelp==="CONFIRMED")adConf.push("Yelp"); if(asx.summary.nextdoor==="CONFIRMED")adConf.push("Nextdoor"); }
     if(adConf.length){ out.push('<span class="chip ember" title="Confirmed active ads (live verification)">ads &#10003; '+esc(adConf.join(", "))+'</span>'); }
     else if(adOn.length){ out.push('<span class="chip gold" title="Ad pixels detected — likely running ads">ads: '+esc(adOn.join(", "))+'</span>'); }
     else if(s.marketing_pixels||asx){ out.push('<span class="chip leaf" title="No active ads / no ad pixels — consult opportunity">no ads</span>'); }
@@ -378,6 +378,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
       out.push('<span class="chip mut" title="Best nearby competitor snapshot from competitor_set evidence">'+esc(compLabel)+'</span>');
     }
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
+    out.push('<button class="chip act-log" data-lead="'+esc(l.lead_id)+'" title="Inspect phone transcripts, LLM inputs, Bing ads, and JSON evidence ledger">{ } Debug Logs</button>');
     out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh deep analysis: website, reviews, social, phone, ads and competitors, then re-score">&#8635; Re-analyze</button>');
     return '<div class="chips">'+out.join("")+'</div>';
   }
@@ -407,8 +408,78 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
          '</div>';
     }
     box.innerHTML=h;
+    var leadMap={}; for(var m=0;m<leads.length;m++){ leadMap[leads[m].lead_id]=leads[m]; }
     var rbs=box.querySelectorAll(".act");
     for(var q=0;q<rbs.length;q++){ rbs[q].onclick=function(){ reanalyze(this.getAttribute("data-lead"), this); }; }
+    var lbs=box.querySelectorAll(".act-log");
+    for(var p=0;p<lbs.length;p++){ lbs[p].onclick=function(){ var lid=this.getAttribute("data-lead"); if(leadMap[lid]) openDebugLogsModal(leadMap[lid]); }; }
+  }
+
+  function openDebugLogsModal(l){
+    var s=l.signals||{}, ev=l.evidence_ledger||[], runs=l.service_runs||[];
+    var phoneEv=ev.filter(function(e){ return e.source_provider==='phone_probe'||(e.feature_key&&e.feature_key.indexOf('phone')>=0); });
+    var phoneRuns=runs.filter(function(r){ return r.service==='phone_probe'; });
+    var phoneSummary={
+      phone_e164: l.phone||null,
+      answered_by: s.phone_probe_answered_by||'unknown',
+      assistant_type: s.phone_assistant_type||'unclear',
+      unanswered: s.phone_unanswered||false,
+      probe_runs: phoneRuns,
+      evidence_items: phoneEv
+    };
+    var adStatus=s.ad_status||{}, adPixels=s.marketing_pixels||{};
+    var adsSummary={
+      bing_ads:{
+        pixel_on_site: !!adPixels.bing_ads,
+        confirmed_search_ads: (adStatus.summary&&adStatus.summary.bing)||"NONE"
+      },
+      meta_ads: (adStatus.summary&&adStatus.summary.meta)||(adPixels.meta_pixel?"LIKELY":"NONE"),
+      google_ads: (adStatus.summary&&adStatus.summary.google)||(adPixels.google_ads?"LIKELY":"NONE"),
+      yelp_ads: (adStatus.summary&&adStatus.summary.yelp)||(adPixels.yelp_pixel?"LIKELY":"NONE"),
+      nextdoor_ads: adPixels.nextdoor_pixel?"LIKELY":"NONE",
+      all_live_ad_urls: (adStatus.evidence_ledger&&adStatus.evidence_ledger.live_ad_urls)||[]
+    };
+    var llmSummary={
+      vision_design: s.design_findings||null,
+      review_complaints: s.complaint_themes||null,
+      report_generator:{
+        report_url: l.report_url||null,
+        summary: l.report_summary||null,
+        prompt_version: l.prompt_version||null,
+        model_version: l.model_version||null,
+        validation: l.report_validation||null
+      }
+    };
+    var wrap=document.createElement("div"); wrap.className="overlay";
+    wrap.innerHTML='<div class="sheet" style="max-width:820px;max-height:85vh;display:flex;flex-direction:column">'+
+      '<div style="display:flex;align-items:center"><h3 style="margin:0">Debug Logs: '+esc(l.name||"Lead")+'</h3><button class="close" title="Close">&times;</button></div>'+
+      '<p class="hint">Technical inspection &amp; JSON ledger for visual debugging.</p>'+
+      '<div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px">'+
+        '<button class="tbtn segbtn on" id="tab_bing">Bing &amp; Ads</button>'+
+        '<button class="tbtn segbtn" id="tab_phone">Phone Probe Log</button>'+
+        '<button class="tbtn segbtn" id="tab_llm">LLM Feeds</button>'+
+        '<button class="tbtn segbtn" id="tab_json">Raw JSON Ledger</button>'+
+      '</div>'+
+      '<div id="tab_body" style="flex:1;overflow:auto;background:var(--bg);padding:14px;border-radius:9px;font-family:\'IBM Plex Mono\',monospace;font-size:12px;white-space:pre-wrap;word-break:break-all"></div>'+
+      '</div>';
+    document.body.appendChild(wrap);
+    var body=wrap.querySelector("#tab_body");
+    function setTab(name, data){
+      var tabs=["tab_bing","tab_phone","tab_llm","tab_json"];
+      for(var i=0;i<tabs.length;i++){
+        var t=wrap.querySelector("#"+tabs[i]);
+        if(t) t.classList.toggle("on", tabs[i]===("tab_"+name));
+      }
+      body.textContent=JSON.stringify(data, null, 2);
+    }
+    wrap.querySelector("#tab_bing").onclick=function(){ setTab("bing", adsSummary); };
+    wrap.querySelector("#tab_phone").onclick=function(){ setTab("phone", phoneSummary); };
+    wrap.querySelector("#tab_llm").onclick=function(){ setTab("llm", llmSummary); };
+    wrap.querySelector("#tab_json").onclick=function(){ setTab("json", { signals:s, evidence_ledger:ev, service_runs:runs }); };
+    setTab("bing", adsSummary);
+    var cl=function(){ wrap.remove(); };
+    wrap.querySelector(".close").onclick=cl;
+    wrap.onclick=function(e){ if(e.target===wrap) cl(); };
   }
 
   // ----- fleet drawer -----
@@ -645,15 +716,17 @@ const hookLeads = trigger({ type: 'n8n-nodes-base.webhook', version: 2.1, config
 const authLeads = ifElse({ version: 2.2, config: { name: 'Leads Authorized?', position: [440, 600], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, combinator: 'and', conditions: [{ leftValue: expr("{{ $json.headers['x-leadgen-key'] }}"), operator: { type: 'string', operation: 'equals' }, rightValue: '<<INTAKE_API_KEY>>' }] } } } });
 
 // UUID-shape guard: a malformed ?campaign yields the nil uuid (empty result) rather than a cast error.
-const cleanParams = node({ type: 'n8n-nodes-base.set', version: 3.4, config: { name: 'Clean Params', position: [700, 540], parameters: { mode: 'raw', includeOtherFields: false, jsonOutput: expr("={{ { campaign_id: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(($json.query && $json.query.campaign) || '') ? $json.query.campaign : '00000000-0000-0000-0000-000000000000' } }}") } }, output: [{ campaign_id: '' }] });
+const cleanParams = node({ type: 'n8n-nodes-base.set', version: 3.4, config: { name: 'Clean Params', position: [700, 540], parameters: { mode: 'raw', includeOtherFields: false, jsonOutput: expr("={{ { campaign_id: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(($('Leads API').item.json.query && $('Leads API').item.json.query.campaign) || ($json.query && $json.query.campaign) || '') ? (($('Leads API').item.json.query && $('Leads API').item.json.query.campaign) || $json.query.campaign) : '00000000-0000-0000-0000-000000000000' } }}") } }, output: [{ campaign_id: '' }] });
 
 const LEADS_SQL = "SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.opportunity DESC NULLS LAST, x.name), '[]'::jsonb) AS payload FROM ("
   + " SELECT cl.id AS lead_id, b.business_name AS name, b.website_domain AS domain, b.phone_e164 AS phone, b.address, b.sales_status,"
   + " cl.classification, cl.classification_reason, cl.rediscovered, cl.hot_candidate, cl.critic_state,"
   + " a.opportunity_score AS opportunity, a.contactability_score AS contactability, a.evidence_confidence AS confidence,"
   + " a.fit_web_seo AS web_seo, a.fit_voice_ai AS voice_ai, a.fit_ads_video AS ads_video, a.fit_consulting AS consulting, a.best_angle,"
-  + " r.report_url, r.summary AS report_summary,"
-  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals"
+  + " r.report_url, r.summary AS report_summary, r.prompt_version, r.model_version, r.validation AS report_validation,"
+  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
+  + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at FROM leadgen.evidence_items e WHERE e.business_id=b.id ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
+  + " (SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.completed_at DESC NULLS LAST), '[]'::jsonb) FROM (SELECT sr.service, sr.started_at, sr.completed_at, sr.status FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id=sr.work_item_id WHERE wi.campaign_lead_id=cl.id ORDER BY sr.completed_at DESC) sr) AS service_runs"
   + " FROM leadgen.campaign_leads cl JOIN leadgen.businesses b ON b.id=cl.business_id"
   + " LEFT JOIN leadgen.lead_assessments a ON a.id=cl.latest_assessment_id"
   + " LEFT JOIN leadgen.lead_reports r ON r.campaign_lead_id=cl.id"

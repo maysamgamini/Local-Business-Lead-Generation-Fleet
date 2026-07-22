@@ -14,15 +14,19 @@ DECLARE
 BEGIN
 FOREACH ns IN ARRAY ARRAY['leadgen','leadgen_dryrun'] LOOP
   EXECUTE format(
+    'SELECT id FROM %I.config_sets WHERE config_type=''scoring'' AND content_hash=md5(''scoring-v2-ads-social'') LIMIT 1',
+    ns) INTO new_id;
+
+  EXECUTE format(
     'SELECT id FROM %I.config_sets WHERE config_type=''scoring'' AND retired_at IS NULL ORDER BY version DESC LIMIT 1',
     ns) INTO old_id;
 
-  IF old_id IS NOT NULL THEN
+  IF old_id IS NOT NULL AND new_id IS NULL THEN
     EXECUTE format($sql$
       INSERT INTO %1$I.config_sets
         (config_type, version, content_hash, activated_at)
       SELECT 'scoring', coalesce(max(version),0)+1,
-             md5('scoring-v2-ads-social-' || (coalesce(max(version),0)+1)::text), now()
+             md5('scoring-v2-ads-social'), now()
         FROM %1$I.config_sets WHERE config_type='scoring'
       RETURNING id
     $sql$, ns) INTO new_id;
@@ -57,10 +61,30 @@ FOREACH ns IN ARRAY ARRAY['leadgen','leadgen_dryrun'] LOOP
       USING old_id;
   END IF;
 
+  -- Re-runs converge on the same active set instead of minting v3/v4 copies.
+  IF new_id IS NOT NULL THEN
+    EXECUTE format(
+      'UPDATE %I.config_sets SET activated_at=coalesce(activated_at,now()), retired_at=NULL WHERE id=$1', ns)
+      USING new_id;
+    EXECUTE format(
+      'UPDATE %I.config_sets SET retired_at=coalesce(retired_at,now()) WHERE config_type=''scoring'' AND id<>$1 AND retired_at IS NULL', ns)
+      USING new_id;
+  END IF;
+
   EXECUTE format($sql$
     INSERT INTO %1$I.revision_impact_rules (cause_type, affected_service)
     VALUES ('ads_evidence','assessment'), ('competitors_evidence','assessment')
     ON CONFLICT (cause_type, affected_service) DO UPDATE SET enabled=true
+  $sql$, ns);
+
+  EXECUTE format($sql$
+    ALTER TABLE %1$I.lead_reports
+      ADD COLUMN IF NOT EXISTS assessment_id uuid,
+      ADD COLUMN IF NOT EXISTS evidence_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS prompt_version text,
+      ADD COLUMN IF NOT EXISTS model_version text,
+      ADD COLUMN IF NOT EXISTS validation jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS report_version text
   $sql$, ns);
 END LOOP;
 END $mig$;
