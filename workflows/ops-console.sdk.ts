@@ -786,9 +786,9 @@ const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview),"
   + "'notifications', (SELECT coalesce(jsonb_agg(to_jsonb(n) ORDER BY n.created_at DESC), '[]'::jsonb) FROM ("
   + "  SELECT sr.id AS id, sr.service AS service, sr.status AS type, sr.workflow_version AS version, wi.campaign_id AS campaign_id, c.business_type AS context, sr.started_at AS created_at,"
-  + "    CASE WHEN sr.workflow_version LIKE '%degraded%' THEN 'Degraded mode / rate limit fallback active' WHEN sr.status = 'failed' THEN 'Worker failure — auto-retried' WHEN sr.attempt > 1 THEN 'Rate limit / retry attempt ' || sr.attempt || ' executed' ELSE 'System notice' END AS message"
+  + "    CASE WHEN sr.workflow_version LIKE '%degraded%' THEN 'Degraded mode / rate limit fallback active' WHEN sr.status = 'failed' THEN 'Worker failure - auto-retried' WHEN sr.work_attempt > 1 THEN 'Rate limit / retry attempt ' || sr.work_attempt || ' executed' ELSE 'System notice' END AS message"
   + "  FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id = sr.work_item_id JOIN leadgen.campaigns c ON c.id = wi.campaign_id"
-  + "  WHERE sr.status IN ('failed', 'retrying') OR sr.workflow_version LIKE '%degraded%' OR sr.attempt > 1 ORDER BY sr.started_at DESC LIMIT 30) n)"
+  + "  WHERE sr.status IN ('failed', 'retrying') OR sr.workflow_version LIKE '%degraded%' OR sr.work_attempt > 1 ORDER BY sr.started_at DESC LIMIT 30) n)"
   + ") AS payload";
 
 const queryOverview = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Query Overview', position: [700, 260], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: OVERVIEW_SQL }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: {} }] });
