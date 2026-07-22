@@ -146,8 +146,9 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, @@SCHEMA@@ AS $$
 DECLARE v_wi uuid; v_attempt int; v_run uuid; v_n int := 0; e record;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM evidence_items ei
+      JOIN campaigns c ON c.id = ei.campaign_id
       WHERE ei.business_id = p_business_id AND ei.service = p_service
-        AND ei.campaign_id <> p_campaign_id AND ei.archived_at IS NULL AND ei.observed_at > now() - p_window) THEN
+        AND ei.campaign_id <> p_campaign_id AND ei.archived_at IS NULL AND c.archived_at IS NULL AND c.status <> 'archived' AND ei.observed_at > now() - p_window) THEN
     RETURN 0;
   END IF;
   SELECT id, execution_attempt_count INTO v_wi, v_attempt
@@ -162,12 +163,13 @@ BEGIN
   RETURNING id INTO v_run;
 
   FOR e IN
-    SELECT DISTINCT ON (feature_key) feature_key, value_jsonb, value_type, unit,
-           product_tag, source_provider, observed_at, calculation_version, excerpt
-      FROM evidence_items
-     WHERE business_id = p_business_id AND service = p_service
-       AND campaign_id <> p_campaign_id AND archived_at IS NULL AND observed_at > now() - p_window
-     ORDER BY feature_key, observed_at DESC
+    SELECT DISTINCT ON (ei.feature_key) ei.feature_key, ei.value_jsonb, ei.value_type, ei.unit,
+           ei.product_tag, ei.source_provider, ei.observed_at, ei.calculation_version, ei.excerpt
+      FROM evidence_items ei
+      JOIN campaigns c ON c.id = ei.campaign_id
+     WHERE ei.business_id = p_business_id AND ei.service = p_service
+       AND ei.campaign_id <> p_campaign_id AND ei.archived_at IS NULL AND c.archived_at IS NULL AND c.status <> 'archived' AND ei.observed_at > now() - p_window
+     ORDER BY ei.feature_key, ei.observed_at DESC
   LOOP
     INSERT INTO evidence_items (business_id, campaign_id, service, feature_key, product_tag,
       value_jsonb, value_type, unit, source_provider, observed_at, service_run_id,
