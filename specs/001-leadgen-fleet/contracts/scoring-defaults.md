@@ -115,10 +115,10 @@ at 100.
 |---|---|
 | **hot_candidate** | opportunity ≥75 AND evidence_confidence ≥60 — the US1-computable dimensions; contactability pending. Set by the Scorer whenever this condition holds and the lead is not yet Hot |
 | Hot | opportunity ≥75 AND contactability ≥60 AND confidence ≥60 — evaluated once contactability exists (US2); promotion only after critic resolution |
-| Warm / Cold / Disqualified | **opportunity ≥45 / ≥40 / <40** (warm lowered 60→45 on 2026-07-18 — established SMB verticals score in the 45–55 band and are legit warm leads) |
+| Warm / Cold / Disqualified | **opportunity ≥40 / 30–39 / <30** (warm threshold updated to ≥40 on 2026-07-21 — opportunity ≥40 is warm) |
 | Enrichment gate | opportunity ≥60 |
 | Quality floor (campaign degraded) | >20% dead work items OR mean confidence <40 |
 
-> **Implementation note (2026-07-18):** the warm/cold/disqualified thresholds AND the opportunity formula (`0.55×best + 0.15×second + firmographics`) are currently **hardcoded in the Scorer's "Compute Scores" Code node** (deployed workflow `r0K3xkLN2XtUceTF`), NOT read from these `scoring_config` rows. The `scoring_config` threshold rows document intent and are kept in sync (`activate-v1.sql` `warm_opportunity` = 45); a future refactor should have the Scorer read them. `domain_hard_to_recall` (+25 web_seo) is likewise computed in-Scorer.
+> **Implementation note (2026-07-21):** the warm/cold/disqualified thresholds AND the opportunity formula (`0.55×best + 0.15×second + firmographics`) are currently **hardcoded in the Scorer's "Compute Scores" Code node** (deployed workflow `r0K3xkLN2XtUceTF`), NOT read from these `scoring_config` rows. The `scoring_config` threshold rows document intent and are kept in sync (`activate-v1.sql` `warm_opportunity` = 40); a future refactor should have the Scorer read them. `domain_hard_to_recall` (+25 web_seo) is likewise computed in-Scorer.
 
 **Traceability note**: the original table's "clear business problem = 25" became the problem-evidence weights inside each fit; "industry 20 + area 10 + size 15" became the 30-point firmographic block (rebalanced 15/5/10 since discovery hard-filters category/geo mismatches before scoring); "DM 15 + contact 15" became the separate contactability dimension per the round-3 correction that reachability must not inflate opportunity.
