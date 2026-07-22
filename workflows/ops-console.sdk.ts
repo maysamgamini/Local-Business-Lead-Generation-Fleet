@@ -210,6 +210,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 <header>
   <div class="brand"><b>HiLeadDiscovery</b><span>Ops Console</span></div>
   <div class="grow"></div>
+  <button class="tbtn ghost" id="notifBtn" title="System alerts & rate limit center">🔔 Alerts <span id="notifBadge" style="background:var(--warm);color:#000;padding:2px 6px;border-radius:10px;font-size:11px;margin-left:4px;display:none;">0</span></button>
   <button class="tbtn ghost" id="fleetBtn" title="Fleet health">Fleet</button>
   <button class="tbtn ghost" id="schedBtn" title="Scheduled campaigns">Schedules</button>
   <button class="tbtn ghost" id="themeBtn" title="Toggle theme">Theme</button>
@@ -782,7 +783,12 @@ const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "    (SELECT coalesce(sum(actual_usd),0) FROM leadgen.budget_transactions bt WHERE bt.campaign_id=cam.id AND bt.state='settled') AS spent_usd"
   + "  FROM leadgen.campaigns cam ORDER BY cam.created_at DESC LIMIT 60) c),"
   + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items WHERE archived_at IS NULL GROUP BY service, state) f),"
-  + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview)"
+  + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview),"
+  + "'notifications', (SELECT coalesce(jsonb_agg(to_jsonb(n) ORDER BY n.created_at DESC), '[]'::jsonb) FROM ("
+  + "  SELECT sr.id AS id, sr.service AS service, sr.status AS type, sr.workflow_version AS version, wi.campaign_id AS campaign_id, c.business_type AS context, sr.started_at AS created_at,"
+  + "    CASE WHEN sr.workflow_version LIKE '%degraded%' THEN 'Degraded mode / rate limit fallback active' WHEN sr.status = 'failed' THEN 'Worker failure — auto-retried' WHEN sr.attempt > 1 THEN 'Rate limit / retry attempt ' || sr.attempt || ' executed' ELSE 'System notice' END AS message"
+  + "  FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id = sr.work_item_id JOIN leadgen.campaigns c ON c.id = wi.campaign_id"
+  + "  WHERE sr.status IN ('failed', 'retrying') OR sr.workflow_version LIKE '%degraded%' OR sr.attempt > 1 ORDER BY sr.started_at DESC LIMIT 30) n)"
   + ") AS payload";
 
 const queryOverview = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Query Overview', position: [700, 260], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: OVERVIEW_SQL }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: {} }] });
