@@ -37,7 +37,9 @@ BEGIN
    WHERE business_id = v_business_id AND campaign_id = v_campaign_id AND archived_at IS NULL;
   GET DIAGNOSTICS v_ev_cnt = ROW_COUNT;
 
-  UPDATE work_items SET archived_at = now() 
+  UPDATE work_items
+     SET archived_at = now(),
+         state = CASE WHEN state IN ('blocked','pending','running') THEN 'canceled' ELSE state END
    WHERE campaign_lead_id = p_campaign_lead_id AND archived_at IS NULL;
   GET DIAGNOSTICS v_wi_cnt = ROW_COUNT;
 
@@ -63,7 +65,10 @@ BEGIN
   UPDATE evidence_items SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
   GET DIAGNOSTICS v_ev_cnt = ROW_COUNT;
 
-  UPDATE work_items SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
+  UPDATE work_items
+     SET archived_at = now(),
+         state = CASE WHEN state IN ('blocked','pending','running') THEN 'canceled' ELSE state END
+   WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
   GET DIAGNOSTICS v_wi_cnt = ROW_COUNT;
 
   UPDATE lead_reports SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
