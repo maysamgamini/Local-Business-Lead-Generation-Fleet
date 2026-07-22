@@ -265,7 +265,9 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   }
 
   function api(path){
-    return fetch(path,{ headers:{ "x-leadgen-key": ascii(state.key) }, cache:"no-store" }).then(function(r){
+    var sep=(path.indexOf("?")>=0)?"&":"?";
+    var url=path+sep+"_t="+Date.now();
+    return fetch(url,{ headers:{ "x-leadgen-key": ascii(state.key) }, cache:"no-store" }).then(function(r){
       if(r.status===401||r.status===403){ var e=new Error("unauthorized"); e.code=401; throw e; }
       if(!r.ok){ throw new Error("HTTP "+r.status); }
       return r.json();
@@ -345,7 +347,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"archive_campaign", campaign_id:cur }) })
       .then(function(r){ return r.json(); })
       .then(function(res){
-        if(res && res.ok){ toast("Campaign archived! All findings soft-archived."); state.current=null; boot(); }
+        if(res && res.ok){ toast("Campaign archived! All findings soft-archived."); boot(cur); }
         else{ alert((res && res.error) || "Could not archive campaign."); }
       })
       .catch(fail);
@@ -429,7 +431,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"archive_lead", lead_id:lid }) })
       .then(function(r){ return r.json(); })
       .then(function(res){
-        if(res && res.ok){ toast("Lead archived successfully! Fresh campaigns will re-collect evidence."); selectCampaign(state.current); }
+        if(res && res.ok){ toast("Lead archived successfully! Fresh campaigns will re-collect evidence."); boot(state.current); }
         else{ alert((res && res.error) || "Could not archive lead."); }
       })
       .catch(fail);
@@ -687,13 +689,14 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     $("rows").innerHTML='<div class="empty"><b>Could not load data</b>'+esc((e&&e.message)||"Unknown error")+'. Try refreshing.</div>';
   }
 
-  function boot(){
+  function boot(preferredCampaignId){
     api("leadgen-console-data").then(function(d){
       renderKpis(d);
       state.campaigns=d.campaigns||[];
       renderCampaigns(state.campaigns);
-      var keep=state.current&&state.campaigns.some(function(c){ return c.id===state.current; });
-      var pick=keep?state.current:(state.campaigns[0]&&state.campaigns[0].id);
+      var target=preferredCampaignId||state.current;
+      var keep=target&&state.campaigns.some(function(c){ return c.id===target; });
+      var pick=keep?target:(state.campaigns[0]&&state.campaigns[0].id);
       if(pick) selectCampaign(pick);
     }).catch(fail);
   }
