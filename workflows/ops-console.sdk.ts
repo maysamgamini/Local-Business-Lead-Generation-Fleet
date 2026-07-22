@@ -736,8 +736,8 @@ const authData = ifElse({ version: 2.2, config: { name: 'Data Authorized?', posi
 
 const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "'generated_at', now(),"
-  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns),"
-  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads),"
+  + "'kpis', (SELECT jsonb_build_object('campaigns', count(*), 'active', count(*) FILTER (WHERE status IN ('created','discovering','analyzing','awaiting_approval','finalizing')), 'complete', count(*) FILTER (WHERE status='complete')) FROM leadgen.campaigns WHERE archived_at IS NULL),"
+  + "'leads_kpis', (SELECT jsonb_build_object('total', count(*), 'hot', count(*) FILTER (WHERE classification='hot'), 'warm', count(*) FILTER (WHERE classification='warm'), 'cold', count(*) FILTER (WHERE classification='cold'), 'dq', count(*) FILTER (WHERE classification='disqualified')) FROM leadgen.campaign_leads WHERE archived_at IS NULL),"
   + "'campaigns', (SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.created_at DESC), '[]'::jsonb) FROM ("
   + "  SELECT cam.id, cam.status, cam.quality_state, cam.budget_state, cam.business_type, cam.created_at, cam.geo_original, cam.geo_type, cam.depth, cam.volume_cap, cam.budget_cap_usd, cam.archived_at,"
   + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id) AS leads,"
@@ -747,7 +747,7 @@ const OVERVIEW_SQL = "SELECT jsonb_build_object("
   + "    (SELECT count(*) FROM leadgen.campaign_leads cl WHERE cl.campaign_id=cam.id AND cl.classification='disqualified') AS dq,"
   + "    (SELECT coalesce(sum(actual_usd),0) FROM leadgen.budget_transactions bt WHERE bt.campaign_id=cam.id AND bt.state='settled') AS spent_usd"
   + "  FROM leadgen.campaigns cam ORDER BY cam.created_at DESC LIMIT 60) c),"
-  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items GROUP BY service, state) f),"
+  + "'fleet', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.service, f.state), '[]'::jsonb) FROM (SELECT service, state, count(*) AS n FROM leadgen.work_items WHERE archived_at IS NULL GROUP BY service, state) f),"
   + "'stuck', (SELECT count(*) FROM leadgen.stuck_work_overview)"
   + ") AS payload";
 
