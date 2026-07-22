@@ -467,13 +467,18 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
 
   function openDebugLogsModal(l){
     var s=l.signals||{}, ev=l.evidence_ledger||[], runs=l.service_runs||[];
+    var plog=s.phone_probe_log||{};
     var phoneEv=ev.filter(function(e){ return e.source_provider==='phone_probe'||(e.feature_key&&e.feature_key.indexOf('phone')>=0); });
     var phoneRuns=runs.filter(function(r){ return r.service==='phone_probe'; });
     var phoneSummary={
-      phone_e164: l.phone||null,
-      answered_by: s.phone_probe_answered_by||'unknown',
-      assistant_type: s.phone_assistant_type||'unclear',
+      phone_e164: l.phone||plog.phone_e164||null,
+      answered_by: s.phone_probe_answered_by||plog.answered_by||'unknown',
+      assistant_type: s.phone_assistant_type||plog.phone_assistant_type||'unclear',
       unanswered: s.phone_unanswered||false,
+      transcript: plog.words_spoken_transcript||plog.transcript||(plog.llm_raw_response&&(plog.llm_raw_response.words_spoken||plog.llm_raw_response.transcript))||"No call transcript recorded yet (phone probe not executed or call unanswered)",
+      twilio_call_sid: plog.twilio_call_sid||null,
+      llm_audio_prompt: plog.llm_audio_prompt||null,
+      llm_raw_response: plog.llm_raw_response||null,
       probe_runs: phoneRuns,
       evidence_items: phoneEv
     };
@@ -605,8 +610,11 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
       fetch("leadgen-intake-api",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify(body) })
         .then(function(r){ return r.json(); })
         .then(function(res){
-          if(res && res.ok){ msg.innerHTML='<div class="msg ok">Campaign '+(res.creation_status||"created")+'. Refreshing…</div>'; setTimeout(function(){ cl(); boot(); }, 900); }
-          else{ self.disabled=false; self.textContent="Launch campaign"; msg.innerHTML='<div class="msg err">'+esc((res&&res.error)||"Could not create campaign.")+'</div>'; }
+          if(res && res.ok){
+            msg.innerHTML='<div class="msg ok">Campaign '+(res.creation_status||"created")+'. Refreshing…</div>';
+            var newId=res.campaign_id;
+            setTimeout(function(){ cl(); boot(newId); }, 800);
+          } else{ self.disabled=false; self.textContent="Launch campaign"; msg.innerHTML='<div class="msg err">'+esc((res&&res.error)||"Could not create campaign.")+'</div>'; }
         })
         .catch(function(){ self.disabled=false; self.textContent="Launch campaign"; msg.innerHTML='<div class="msg err">Network error — check the connection and try again.</div>'; });
     };
@@ -621,7 +629,11 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     var body={ request_id:"rerun-"+String(c.id).slice(0,8)+"-"+Date.now(), business_type:c.business_type, geo:(c.geo_original||{}), depth:(c.depth||"standard"), volume_cap:Math.round(Number(c.volume_cap)||25), budget:{ amount:Number(c.budget_cap_usd)||25, currency:"USD" } };
     fetch("leadgen-intake-api",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify(body) })
       .then(function(r){ return r.json(); })
-      .then(function(res){ b.disabled=false; b.textContent="Run now"; if(res&&res.ok){ boot(); } else { window.alert("Could not launch: "+((res&&res.error)||"error")); } })
+      .then(function(res){
+        b.disabled=false; b.textContent="Run now";
+        if(res&&res.ok){ toast("New campaign launched!"); boot(res.campaign_id); }
+        else { window.alert("Could not launch: "+((res&&res.error)||"error")); }
+      })
       .catch(function(){ b.disabled=false; b.textContent="Run now"; window.alert("Network error — try again."); });
   }
 
@@ -690,16 +702,34 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
   }
 
   function boot(preferredCampaignId){
+    var target=preferredCampaignId||state.current;
     api("leadgen-console-data").then(function(d){
       renderKpis(d);
       state.campaigns=d.campaigns||[];
       renderCampaigns(state.campaigns);
-      var target=preferredCampaignId||state.current;
       var keep=target&&state.campaigns.some(function(c){ return c.id===target; });
       var pick=keep?target:(state.campaigns[0]&&state.campaigns[0].id);
       if(pick) selectCampaign(pick);
     }).catch(fail);
   }
+
+  // Automatic background polling every 5 seconds to sync campaigns & active lead board live
+  setInterval(function(){
+    if(!state.key) return;
+    api("leadgen-console-data").then(function(d){
+      var oldLen=state.campaigns.length;
+      state.campaigns=d.campaigns||[];
+      renderKpis(d);
+      renderFleet(d);
+      renderStuck(d);
+      renderCampaigns(state.campaigns);
+      if(oldLen>0 && state.campaigns.length>oldLen && state.campaigns[0]){
+        selectCampaign(state.campaigns[0].id);
+      } else if(state.current){
+        api("leadgen-console-leads?campaign="+encodeURIComponent(state.current)).then(renderBoard).catch(function(){});
+      }
+    }).catch(function(){});
+  }, 5000);
 
   // theme
   function initTheme(){
