@@ -68,7 +68,8 @@ BEGIN
 
   UPDATE lead_reports SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
 
-  UPDATE lead_assessments SET archived_at = now() WHERE campaign_id = p_campaign_id AND archived_at IS NULL;
+  UPDATE lead_assessments SET archived_at = now() 
+   WHERE campaign_lead_id IN (SELECT id FROM campaign_leads WHERE campaign_id = p_campaign_id) AND archived_at IS NULL;
 
   RETURN jsonb_build_object('ok', true, 'campaign_id', p_campaign_id, 'archived_leads_count', v_lead_cnt, 'archived_evidence_count', v_ev_cnt, 'archived_work_items_count', v_wi_cnt, 'archived_at', now());
 END $$;
