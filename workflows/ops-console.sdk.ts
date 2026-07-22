@@ -380,6 +380,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(l.report_url){ out.push('<a class="chip rep" href="'+esc(l.report_url)+'" target="_blank" rel="noopener" title="Open the generated report">Report &#8599;</a>'); }
     out.push('<button class="chip act-log" data-lead="'+esc(l.lead_id)+'" title="Inspect phone transcripts, LLM inputs, Bing ads, and JSON evidence ledger">{ } Debug Logs</button>');
     out.push('<button class="chip act" data-lead="'+esc(l.lead_id)+'" title="Force a fresh deep analysis: website, reviews, social, phone, ads and competitors, then re-score">&#8635; Re-analyze</button>');
+    out.push('<button class="chip act-arc" data-lead="'+esc(l.lead_id)+'" style="color:var(--dq);border-color:var(--dq);" title="Soft-archive this lead and its evidence">&#128230; Archive</button>');
     return '<div class="chips">'+out.join("")+'</div>';
   }
   function contactSub(l){
@@ -388,6 +389,16 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(l.phone){ bits.push('<a href="tel:'+esc(l.phone)+'">'+esc(l.phone)+'</a>'); }
     if(l.address){ bits.push(esc(String(l.address).split(",")[0])); }
     return bits.join('<span style="color:var(--faint)">·</span>');
+  }
+  function archiveLead(lid){
+    if(!confirm("Soft-archive this lead and its evidence? (Archived evidence will be ignored by future campaigns, prompting fresh re-collection from live providers)")) return;
+    fetch("leadgen-console-action",{ method:"POST", headers:{ "x-leadgen-key":ascii(state.key), "content-type":"application/json" }, body:JSON.stringify({ action:"archive_lead", lead_id:lid }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(res && res.ok){ toast("Lead archived successfully! Fresh campaigns will re-collect evidence."); selectCampaign(state.current); }
+        else{ alert((res && res.error) || "Could not archive lead."); }
+      })
+      .catch(fail);
   }
   function renderBoard(leads){
     var box=$("rows");
@@ -413,6 +424,8 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     for(var q=0;q<rbs.length;q++){ rbs[q].onclick=function(){ reanalyze(this.getAttribute("data-lead"), this); }; }
     var lbs=box.querySelectorAll(".act-log");
     for(var p=0;p<lbs.length;p++){ lbs[p].onclick=function(){ var lid=this.getAttribute("data-lead"); if(leadMap[lid]) openDebugLogsModal(leadMap[lid]); }; }
+    var abs=box.querySelectorAll(".act-arc");
+    for(var a=0;a<abs.length;a++){ abs[a].onclick=function(){ archiveLead(this.getAttribute("data-lead")); }; }
   }
 
   function openDebugLogsModal(l){
@@ -720,17 +733,17 @@ const cleanParams = node({ type: 'n8n-nodes-base.set', version: 3.4, config: { n
 
 const LEADS_SQL = "SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.opportunity DESC NULLS LAST, x.name), '[]'::jsonb) AS payload FROM ("
   + " SELECT cl.id AS lead_id, b.business_name AS name, b.website_domain AS domain, b.phone_e164 AS phone, b.address, b.sales_status,"
-  + " cl.classification, cl.classification_reason, cl.rediscovered, cl.hot_candidate, cl.critic_state,"
+  + " cl.classification, cl.classification_reason, cl.rediscovered, cl.hot_candidate, cl.critic_state, cl.archived_at,"
   + " a.opportunity_score AS opportunity, a.contactability_score AS contactability, a.evidence_confidence AS confidence,"
   + " a.fit_web_seo AS web_seo, a.fit_voice_ai AS voice_ai, a.fit_ads_video AS ads_video, a.fit_consulting AS consulting, a.best_angle,"
   + " r.report_url, r.summary AS report_summary, r.prompt_version, r.model_version, r.validation AS report_validation,"
-  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
-  + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at FROM leadgen.evidence_items e WHERE e.business_id=b.id ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
+  + " (SELECT jsonb_object_agg(feature_key, val) FROM (SELECT DISTINCT ON (e.feature_key) e.feature_key, e.value_jsonb AS val FROM leadgen.evidence_items e WHERE e.business_id=b.id AND e.campaign_id=cl.campaign_id AND e.archived_at IS NULL ORDER BY e.feature_key, e.observed_at DESC) ev) AS signals,"
+  + " (SELECT coalesce(jsonb_agg(to_jsonb(ev_all) ORDER BY ev_all.observed_at DESC), '[]'::jsonb) FROM (SELECT e.feature_key, e.value_jsonb, e.value_type, e.product_tag, e.source_provider, e.observed_at, e.archived_at FROM leadgen.evidence_items e WHERE e.business_id=b.id ORDER BY e.observed_at DESC) ev_all) AS evidence_ledger,"
   + " (SELECT coalesce(jsonb_agg(to_jsonb(sr) ORDER BY sr.completed_at DESC NULLS LAST), '[]'::jsonb) FROM (SELECT sr.service, sr.started_at, sr.completed_at, sr.status FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id=sr.work_item_id WHERE wi.campaign_lead_id=cl.id ORDER BY sr.completed_at DESC) sr) AS service_runs"
   + " FROM leadgen.campaign_leads cl JOIN leadgen.businesses b ON b.id=cl.business_id"
   + " LEFT JOIN leadgen.lead_assessments a ON a.id=cl.latest_assessment_id"
   + " LEFT JOIN leadgen.lead_reports r ON r.campaign_lead_id=cl.id"
-  + " WHERE cl.campaign_id = $1::uuid) x";
+  + " WHERE cl.campaign_id = $1::uuid AND cl.archived_at IS NULL) x";
 
 const queryLeads = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Query Leads', position: [960, 540], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: LEADS_SQL, options: { queryReplacement: expr('={{ $json.campaign_id }}') } }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: [] }] });
 
@@ -738,10 +751,22 @@ const respondLeads = node({ type: 'n8n-nodes-base.respondToWebhook', version: 1.
 
 const denyLeads = node({ type: 'n8n-nodes-base.respondToWebhook', version: 1.5, config: { name: 'Deny Leads', position: [700, 700], parameters: { respondWith: 'json', responseBody: expr('={{ { "error": "unauthorized" } }}'), options: { responseCode: 401 } } } });
 
+// ---------- 4) Action API (POST /leadgen-console-action) ----------
+const hookAction = trigger({ type: 'n8n-nodes-base.webhook', version: 2.1, config: { name: 'Action API', position: [200, 800], parameters: { httpMethod: 'POST', path: 'leadgen-console-action', responseMode: 'responseNode' } }, output: [{ body: {}, headers: {} }] });
+
+const authAction = ifElse({ version: 2.2, config: { name: 'Action Authorized?', position: [440, 800], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, combinator: 'and', conditions: [{ leftValue: expr("{{ $json.headers['x-leadgen-key'] }}"), operator: { type: 'string', operation: 'equals' }, rightValue: '<<INTAKE_API_KEY>>' }] } } } });
+
+const execAction = node({ type: 'n8n-nodes-base.postgres', version: 2.6, config: { name: 'Execute Action', position: [700, 800], onError: 'continueRegularOutput', parameters: { operation: 'executeQuery', query: "SELECT leadgen.archive_lead(($1->>'lead_id')::uuid) AS payload", options: { queryReplacement: expr('={{ $json.body }}') } }, credentials: { postgres: newCredential('Postgres account') } }, output: [{ payload: {} }] });
+
+const respondAction = node({ type: 'n8n-nodes-base.respondToWebhook', version: 1.5, config: { name: 'Serve Action', position: [960, 800], parameters: { respondWith: 'json', responseBody: expr('={{ $json.payload || { "ok": true } }}'), options: { responseHeaders: { entries: [{ name: 'Access-Control-Allow-Origin', value: '*' }, { name: 'Access-Control-Allow-Headers', value: '*' }, { name: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' }] } } } } });
+
+const denyAction = node({ type: 'n8n-nodes-base.respondToWebhook', version: 1.5, config: { name: 'Deny Action', position: [700, 940], parameters: { respondWith: 'json', responseBody: expr('={{ { "error": "unauthorized" } }}'), options: { responseCode: 401 } } } });
+
 const note = sticky('## Ops Console (internal, read-only + launch)\n\nSelf-contained SPA served by n8n over the prod ledger (SELECT only, no DML). Three GET webhooks: /leadgen-console (HTML), /leadgen-console-data (KPIs + campaigns + fleet health), /leadgen-console-leads?campaign= (leads + signals + report links). Data/leads endpoints gated by x-leadgen-key (redacted; set on deployed instance). New-campaign form reuses the intake API.', [renderPage, queryOverview, queryLeads], { color: 5 });
 
 export default workflow('leadgen-ops-console', 'Leadgen — Ops Console')
   .add(hookPage).to(renderPage).to(respondPage)
   .add(hookData).to(authData.onTrue(queryOverview.to(respondData)).onFalse(denyData))
   .add(hookLeads).to(authLeads.onTrue(cleanParams.to(queryLeads).to(respondLeads)).onFalse(denyLeads))
+  .add(hookAction).to(authAction.onTrue(execAction.to(respondAction)).onFalse(denyAction))
   .add(note);

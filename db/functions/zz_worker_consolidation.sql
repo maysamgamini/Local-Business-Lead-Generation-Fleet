@@ -3,16 +3,6 @@
 -- connects as leadgen_relay. Grant it the full WORKER function surface so all
 -- worker workflows (Discovery, analyzers, Scorer, Enricher, Sweeper, Event Relay,
 -- Intake) run under one credential.
---
--- PRESERVED boundaries (the ones that matter): no direct DML on protected tables;
--- human-action functions (record_approval / record_sales_status /
--- record_lead_disposition / record_suppression / cancel_campaign) stay on
--- leadgen_human ONLY; config admin (activate_config_set) stays admin-only;
--- dashboard role stays read-only. The per-role worker split (analyzer vs scorer
--- vs enricher vs sweeper) collapses to one worker role for v1 — the work-item
--- fence + per-service checks inside the functions still prevent completing the
--- wrong service's item, so this is defense-in-depth relaxation, not a hole.
--- Deployed after zz_grants.sql (zz_ ordering); rendered per namespace.
 
 GRANT EXECUTE ON FUNCTION
   @@SCHEMA@@.claim_work_items(text,text),
@@ -35,6 +25,10 @@ GRANT EXECUTE ON FUNCTION
   @@SCHEMA@@.reconcile_blocked_dependencies(),
   @@SCHEMA@@.record_lead_report(uuid,text,text,text,text,text),
   @@SCHEMA@@.record_lead_report_v2(uuid,text,text,text,text,text,uuid,jsonb,text,text,jsonb,text),
+  @@SCHEMA@@.archive_evidence(uuid),
+  @@SCHEMA@@.unarchive_evidence(uuid),
+  @@SCHEMA@@.archive_lead(uuid),
+  @@SCHEMA@@.archive_campaign(uuid),
   @@SCHEMA@@.reconcile_expired_reservations(),
   @@SCHEMA@@.begin_campaign_finalization(uuid),
   @@SCHEMA@@.complete_campaign_finalization(uuid,uuid,bigint,jsonb),
