@@ -390,7 +390,7 @@ main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:14px 22px 60p
     if(s.chat_widget_present===true){ out.push('<span class="chip leaf" title="Chat widget on site">chat</span>'); }
     if(s.booking_widget_present===true){ out.push('<span class="chip leaf" title="Booking widget on site">booking</span>'); }
     if(unmemorable(l.domain)){ out.push('<span class="chip gold" title="Long / hard-to-recall domain">long domain</span>'); }
-    if(l.rediscovered===true){ out.push('<span class="chip mut" title="Evidence reused from a prior campaign">&#8635; cached</span>'); }
+    if(l.is_cached===true){ out.push('<span class="chip mut" title="Evidence reused from a prior active campaign">&#8635; cached</span>'); }
     var mp=s.marketing_pixels||{}; var adDefs=[["meta_pixel","Meta"],["google_ads","Google"],["bing_ads","Bing"],["yelp_pixel","Yelp"],["nextdoor_pixel","Nextdoor"],["tiktok_pixel","TikTok"],["linkedin_insight","LinkedIn"],["twitter_ads","X"]]; var adOn=[]; for(var ai=0;ai<adDefs.length;ai++){ if(mp[adDefs[ai][0]]===true) adOn.push(adDefs[ai][1]); }
     var asx=s.ad_status||null; var adConf=[]; if(asx&&asx.summary){ if(asx.summary.meta==="CONFIRMED")adConf.push("Meta"); if(asx.summary.google==="CONFIRMED")adConf.push("Google"); if(asx.summary.bing==="CONFIRMED")adConf.push("Bing"); if(asx.summary.yelp==="CONFIRMED")adConf.push("Yelp"); if(asx.summary.nextdoor==="CONFIRMED")adConf.push("Nextdoor"); }
     if(adConf.length){ out.push('<span class="chip ember" title="Confirmed active ads (live verification)">ads &#10003; '+esc(adConf.join(", "))+'</span>'); }
@@ -771,6 +771,7 @@ const cleanParams = node({ type: 'n8n-nodes-base.set', version: 3.4, config: { n
 const LEADS_SQL = "SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.opportunity DESC NULLS LAST, x.name), '[]'::jsonb) AS payload FROM ("
   + " SELECT cl.id AS lead_id, b.business_name AS name, b.website_domain AS domain, b.phone_e164 AS phone, b.address, b.sales_status,"
   + " cl.classification, cl.classification_reason, cl.rediscovered, cl.hot_candidate, cl.critic_state, cl.archived_at,"
+  + " (SELECT EXISTS (SELECT 1 FROM leadgen.service_runs sr JOIN leadgen.work_items wi ON wi.id=sr.work_item_id WHERE wi.campaign_lead_id=cl.id AND sr.workflow_version='cache-reuse-v1')) AS is_cached,"
   + " a.opportunity_score AS opportunity, a.contactability_score AS contactability, a.evidence_confidence AS confidence,"
   + " a.fit_web_seo AS web_seo, a.fit_voice_ai AS voice_ai, a.fit_ads_video AS ads_video, a.fit_consulting AS consulting, a.best_angle,"
   + " r.report_url, r.summary AS report_summary, r.prompt_version, r.model_version, r.validation AS report_validation,"

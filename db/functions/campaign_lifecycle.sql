@@ -147,7 +147,7 @@ DECLARE v_wi uuid; v_attempt int; v_run uuid; v_n int := 0; e record;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM evidence_items ei
       WHERE ei.business_id = p_business_id AND ei.service = p_service
-        AND ei.campaign_id <> p_campaign_id AND ei.observed_at > now() - p_window) THEN
+        AND ei.campaign_id <> p_campaign_id AND ei.archived_at IS NULL AND ei.observed_at > now() - p_window) THEN
     RETURN 0;
   END IF;
   SELECT id, execution_attempt_count INTO v_wi, v_attempt
@@ -166,7 +166,7 @@ BEGIN
            product_tag, source_provider, observed_at, calculation_version, excerpt
       FROM evidence_items
      WHERE business_id = p_business_id AND service = p_service
-       AND campaign_id <> p_campaign_id AND observed_at > now() - p_window
+       AND campaign_id <> p_campaign_id AND archived_at IS NULL AND observed_at > now() - p_window
      ORDER BY feature_key, observed_at DESC
   LOOP
     INSERT INTO evidence_items (business_id, campaign_id, service, feature_key, product_tag,
